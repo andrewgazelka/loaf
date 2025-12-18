@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <style>
+    /* Layers shift to show overlay */
+    @keyframes layerShift {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    /* Check/X marks pulse */
+    @keyframes fadePulse {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+
+    .upper { animation: layerShift 3s ease-in-out infinite; }
+    .lower { animation: layerShift 3s ease-in-out infinite reverse; animation-delay: 0.2s; }
+    .check { animation: fadePulse 2s ease-in-out infinite; }
+    .reject { animation: fadePulse 2s ease-in-out infinite; animation-delay: 1s; }
+
+    .title { fill: #1f2328; }
+    .subtitle { fill: #656d76; }
+
+    @media (prefers-color-scheme: dark) {
+      .title { fill: #ffffff; }
+      .subtitle { fill: #8b949e; }
+    }
+  </style>
+
+  <!-- Overlay stack visualization -->
+  <g transform="translate(60, 50)">
+    <!-- Lower layer (real filesystem) - blue/gray -->
+    <g class="lower">
+      <rect x="0" y="60" width="100" height="50" rx="6" fill="#64748b" opacity="0.9"/>
+      <text x="50" y="90" font-family="system-ui, sans-serif" font-size="11" fill="white" text-anchor="middle">real fs</text>
+    </g>
+
+    <!-- Upper layer (SQLite overlay) - golden loaf color -->
+    <g class="upper">
+      <rect x="10" y="35" width="100" height="50" rx="6" fill="#eab350"/>
+      <text x="60" y="65" font-family="system-ui, sans-serif" font-size="11" fill="#5c4010" text-anchor="middle">.loaf</text>
+    </g>
+
+    <!-- Overlay indicator lines -->
+    <path d="M55 85 L55 110" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+    <path d="M65 85 L65 110" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+  </g>
+
+  <!-- Arrow to accept/reject -->
+  <path d="M175 100 L210 100" stroke="#8b949e" stroke-width="2" stroke-dasharray="4,4" opacity="0.6"/>
+  <path d="M205 95 L215 100 L205 105" fill="none" stroke="#8b949e" stroke-width="2" opacity="0.6"/>
+
+  <!-- Accept (checkmark) -->
+  <g class="check" transform="translate(225, 70)">
+    <circle cx="15" cy="15" r="15" fill="#22c55e" opacity="0.9"/>
+    <path d="M8 15 L13 20 L22 10" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Reject (X) -->
+  <g class="reject" transform="translate(225, 105)">
+    <circle cx="15" cy="15" r="15" fill="#ef4444" opacity="0.9"/>
+    <path d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Title -->
+  <text class="title" x="280" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="700">loaf</text>
+
+  <!-- Subtitle -->
+  <text class="subtitle" x="280" y="130" font-family="system-ui, -apple-system, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
+</svg>

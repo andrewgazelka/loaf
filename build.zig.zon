@@ -1,0 +1,17 @@
+.{
+    .name = .loaf,
+    .fingerprint = 0xcb08853108e5b69c,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .@"zig-sqlite" = .{
+            .path = "deps/zig-sqlite",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "include",
+    },
+}

@@ -1,0 +1,12 @@
+[submodule "deps/zig-sqlite"]
+	path = deps/zig-sqlite
+	url = https://github.com/vrischmann/zig-sqlite.git
+[submodule "deps/FSKitSample"]
+	path = deps/FSKitSample
+	url = https://github.com/KhaosT/FSKitSample.git
+[submodule "deps/poof"]
+	path = deps/poof
+	url = https://github.com/Jarred-Sumner/poof
+[submodule "deps/agentfs"]
+	path = deps/agentfs
+	url = https://github.com/tursodatabase/agentfs.git

@@ -1,0 +1,53 @@
+name: Loaf
+options:
+  bundleIdPrefix: com.loaf
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "16.0"
+
+settings:
+  SWIFT_VERSION: "6.0"
+  CODE_SIGN_STYLE: Automatic
+  DEVELOPMENT_TEAM: WJQ6TR5FJS
+  ENABLE_HARDENED_RUNTIME: YES
+configs:
+  Debug:
+    CODE_SIGN_IDENTITY: "Apple Development"
+  Release:
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+
+targets:
+  Loaf:
+    type: application
+    platform: macOS
+    sources:
+      - path: LoafApp
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.loaf.app
+      INFOPLIST_FILE: LoafApp/Info.plist
+      CODE_SIGN_ENTITLEMENTS: LoafApp/Loaf.entitlements
+    dependencies:
+      - target: LoafExtension
+        embed: true
+        codeSign: true
+        copyPhase:
+          destination: plugins
+
+  LoafExtension:
+    type: extensionkit-extension
+    platform: macOS
+    sources:
+      - path: LoafExtension
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.loaf.app.extension
+      INFOPLIST_FILE: LoafExtension/Info.plist
+      CODE_SIGN_ENTITLEMENTS: LoafExtension/LoafExtension.entitlements
+      SWIFT_OBJC_BRIDGING_HEADER: LoafExtension/Bridge.h
+      LIBRARY_SEARCH_PATHS:
+        - $(PROJECT_DIR)/../zig-out/lib
+      OTHER_LDFLAGS:
+        - -lloaf
+      HEADER_SEARCH_PATHS:
+        - $(PROJECT_DIR)/../include
+    dependencies: []
