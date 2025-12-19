@@ -102,7 +102,8 @@ Related Feedback reports:
 
 ## Environment
 
-- macOS 26.1 Tahoe (25B78)
+- macOS 26.2 Tahoe (25C56) - still broken
+- macOS 26.1 Tahoe (25B78) - broken
 - Xcode 16+
 - Zig 0.15+
 - Apple Developer Program (Individual)
@@ -123,10 +124,10 @@ zig build test
 
 ## Next Steps
 
-1. **Wait for macOS fixes** - Apple is actively fixing FSKit bugs
+1. **Wait for macOS fixes** - Apple is actively fixing FSKit bugs (26.2 still broken)
 2. **File Apple Feedback** - Report specific issues with error logs
 3. **Monitor forums** - Watch [FSKit tag on Apple Developer Forums](https://developer.apple.com/forums/tags/fskit)
-4. **Test on future macOS updates** - Check if 26.2+ or 27 fixes the issues
+4. **Test on future macOS updates** - Check if 26.3+ or 27 fixes the issues
 
 ## References
 
