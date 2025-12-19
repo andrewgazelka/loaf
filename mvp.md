@@ -11,37 +11,75 @@
 
 ## What Doesn't Work
 
-### FSKit Extension Toggle Bounces Back
+### FSKit Extension Launch Fails with Security Policy Error
 
 **The Problem:**
-In System Settings → General → Login Items & Extensions → File System Extensions, the "FSKit Modules" toggle for Loaf bounces back to OFF when clicked.
+The extension is registered and enabled, but fails to spawn with `error 163: Security policy issue`.
 
 **Mount Error:**
 ```
-Module com.loaf.app.extension is disabled!
+mount: Probing resource: The operation couldn't be completed. (com.apple.extensionKit.errorDomain error 2.)
 mount: Unable to invoke task
 ```
 
-**What We've Tried:**
+**RunningBoard Log:**
+```
+start succeeded, info=spawn failed, error=163: Security policy issue
+Process start failed with Error Domain=NSPOSIXErrorDomain Code=163 "Unknown error: 163" UserInfo={NSLocalizedDescription=Launchd job spawn failed}
+```
+
+**Root Cause Analysis:**
+- Error 163 is not documented in Apple's security error codes
+- RunningBoard/launchd is refusing to spawn the extension process
+- This happens even with proper code signing, notarization, and hardened runtime
+- Likely a macOS 26 Tahoe beta issue with FSKit extensions
+
+### Toggle Bouncing Issue (SOLVED)
+
+**Original Problem:** FSKit toggle in System Settings bounces back to OFF.
+
+**Solution:** FSKit module enable state is stored in user's Group Container, NOT controlled by pluginkit:
+```
+~/Library/Group Containers/group.com.apple.fskit.settings/enabledModules.plist
+/var/root/Library/Group Containers/group.com.apple.fskit.settings/enabledModules.plist
+```
+
+**Workaround:** Add extension ID to root's enabledModules.plist:
+```bash
+sudo plutil -insert 0 -string "com.loaf.app.extension" /var/root/Library/Group\ Containers/group.com.apple.fskit.settings/enabledModules.plist
+sudo pkill -HUP fskitd
+```
+
+After this, the "Module is disabled" error changes to the spawn error above.
+
+### Library Loading (FIXED)
+
+**Problem:** Extension linked against `@rpath/libloaf.dylib` but dylib wasn't embedded.
+
+**Solution:** Build script now:
+1. Creates `LoafExtension.appex/Contents/Frameworks/`
+2. Copies `libloaf.dylib` there
+3. Signs dylib with Developer ID
+4. Re-signs extension and app
+
+### What We've Tried (for spawn error):
 1. ✅ Signed with Developer ID Application certificate
 2. ✅ Notarized with Apple
 3. ✅ Hardened runtime enabled
 4. ✅ Secure timestamp in signature
-5. ✅ Removed `get-task-allow` entitlement (debug entitlement)
-6. ✅ Added `com.apple.developer.fskit.fsmodule` entitlement to extension
-7. ✅ Added `com.apple.security.temporary-exception.mach-lookup.global-name` for `com.apple.filesystems.fskitd` to main app
-8. ✅ Cleaned up duplicate registrations
-9. ✅ Re-registered with `pluginkit -a`
-10. ✅ Restarted System Settings
+5. ✅ Added `com.apple.developer.fskit.fsmodule` entitlement to extension
+6. ✅ Added `com.apple.security.cs.disable-library-validation` entitlement
+7. ✅ Embedded and signed libloaf.dylib in extension's Frameworks folder
+8. ✅ Manually enabled in root's enabledModules.plist
+9. ✅ Restarted fskitd (`sudo pkill -HUP fskitd`)
+10. ❌ Static linking (breaks notarization)
 
-**Logs show no rejection reason** - just normal app lifecycle events, no explicit deny/reject/block messages.
+### Potential Causes for Spawn Error
 
-### Potential Causes
-
-1. **macOS 26 (Tahoe) beta bug** - FSKit is relatively new (macOS 15.4+) and may have issues in beta
-2. **Extension cache** - May require logout/login or reboot to clear
-3. **Per-user setting** - FSKit extension enable is per-user, not system-wide
-4. **Missing entitlement or provisioning** - Developer ID signing for FSKit may need special provisioning
+1. **macOS 26 (Tahoe) beta bug** - Most likely cause; FSKit is new and Tahoe is beta
+2. **Missing undocumented entitlement** - FSKit may require special provisioning for third-party extensions
+3. **Sandbox profile issue** - Extension's sandbox may be blocking something required for spawn
+4. **AMFI/SIP restriction** - May need to disable SIP for third-party FSKit extensions (not ideal)
 
 ## Environment
 

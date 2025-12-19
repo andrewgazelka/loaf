@@ -40,8 +40,20 @@ xcodebuild -project Loaf.xcodeproj \
 
 APP_PATH="build/Build/Products/Release/Loaf.app"
 EXT_PATH="$APP_PATH/Contents/Extensions/LoafExtension.appex"
+EXT_FRAMEWORKS="$EXT_PATH/Contents/Frameworks"
+
+echo "Embedding Zig library into extension..."
+mkdir -p "$EXT_FRAMEWORKS"
+cp ../zig-out/lib/libloaf.dylib "$EXT_FRAMEWORKS/"
+
+# Fix the library's install name to use @rpath
+install_name_tool -id "@rpath/libloaf.dylib" "$EXT_FRAMEWORKS/libloaf.dylib"
 
 echo "Re-signing with Developer ID and hardened runtime..."
+# Sign the dylib first
+codesign --force --options runtime --timestamp \
+    --sign "Developer ID Application: Andrew Gazelka (WJQ6TR5FJS)" \
+    "$EXT_FRAMEWORKS/libloaf.dylib"
 # Sign the extension first (inside-out signing)
 codesign --force --options runtime --timestamp \
     --sign "Developer ID Application: Andrew Gazelka (WJQ6TR5FJS)" \
