@@ -12,6 +12,14 @@ We are on macOS 26
 
 - **Disabling SIP is off the table** - Solution must work with System Integrity Protection enabled
 
+## Current Blocker: FSKit Broken on macOS 26
+
+**FSKit third-party extensions do not work on macOS 26.** This is NOT Loaf-specific - even Apple's reference implementation (FSKitSample) fails identically. fskitd rejects all unprivileged client connections with `entitlement no`.
+
+Apple engineers acknowledge multiple bugs being fixed (FB18230524, FB17772372). DTS engineer Kevin Elliott (July 2025): "more bugs have been found so you're going to need to wait for more fixes."
+
+**Status:** Blocked waiting for Apple to ship fixes. See @mvp.md for full details.
+
 Fork your filesystem, let AI run wild, accept or reject changes. macOS equivalent of [poof](https://github.com/jarred-sumner/poof).
 
 ## Architecture — FSKit Overlay
