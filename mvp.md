@@ -32,7 +32,7 @@ Process start failed with Error Domain=NSPOSIXErrorDomain Code=163 "Unknown erro
 - Error 163 is not documented in Apple's security error codes
 - RunningBoard/launchd is refusing to spawn the extension process
 - This happens even with proper code signing, notarization, and hardened runtime
-- Likely a macOS 26 Tahoe beta issue with FSKit extensions
+- Possibly a macOS 26 Tahoe issue with third-party FSKit extensions
 
 ### Toggle Bouncing Issue (SOLVED)
 
@@ -76,14 +76,14 @@ After this, the "Module is disabled" error changes to the spawn error above.
 
 ### Potential Causes for Spawn Error
 
-1. **macOS 26 (Tahoe) beta bug** - Most likely cause; FSKit is new and Tahoe is beta
+1. **macOS 26 (Tahoe) restriction** - FSKit may have additional restrictions for third-party extensions
 2. **Missing undocumented entitlement** - FSKit may require special provisioning for third-party extensions
 3. **Sandbox profile issue** - Extension's sandbox may be blocking something required for spawn
 4. **AMFI/SIP restriction** - May need to disable SIP for third-party FSKit extensions (not ideal)
 
 ## Environment
 
-- macOS 26.1 Tahoe (25B78) - **beta**
+- macOS 26.1 Tahoe (25B78)
 - Xcode 16+
 - Zig 0.15+
 - Apple Developer Program (Individual)
@@ -112,7 +112,7 @@ zig build test
    # Reboot, then:
    sudo systemextensionsctl developer on
    ```
-3. **Wait for macOS 26 stable** - May be a beta bug
+3. **Check Apple Developer Forums** - Others may have encountered this
 4. **File Apple Feedback** - FB# for FSKit toggle issue
 
 ## References
