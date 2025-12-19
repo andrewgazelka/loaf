@@ -2,9 +2,15 @@
 
 Follow: @mvp.md for mvp status and keep logging there
 
+We have example implementation in @docs/FSKitSample
+
 Contributing: @CONTRIBUTING.md
 
 We are on macOS 26
+
+## Constraints
+
+- **Disabling SIP is off the table** - Solution must work with System Integrity Protection enabled
 
 Fork your filesystem, let AI run wild, accept or reject changes. macOS equivalent of [poof](https://github.com/jarred-sumner/poof).
 

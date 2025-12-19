@@ -11,10 +11,28 @@
 
 ## What Doesn't Work
 
-### FSKit Extension Launch Fails with Security Policy Error
+### FSKit Third-Party Extensions Are Broken on macOS 26
 
-**The Problem:**
-The extension is registered and enabled, but fails to spawn with `error 163: Security policy issue`.
+**This is NOT a Loaf-specific issue.** We tested [FSKitSample](https://github.com/KhaosT/FSKitSample) (Apple's reference implementation) and it fails identically:
+
+```
+fskitd: [com.apple.FSKit:default] Hello FSClient! entitlement no
+fskitd: [com.apple.FSKit:default] About to get current agent for 501
+mount: Unable to invoke task
+```
+
+**Key Finding:** The `entitlement no` message indicates fskitd refuses connections from unprivileged clients. This affects ALL third-party FSKit extensions, not just Loaf.
+
+### Known FSKit Issues (from Apple Developer Forums)
+
+Per [FSKit module mount fails with permissions](https://developer.apple.com/forums/thread/788609):
+
+1. **fskitd permission issues** - fskitd doesn't have permissions to access real disks when initiated from mount utility
+2. **DiskArbitration blocking** - Third-party FSKit modules are deprioritized after KEXTs, effectively blocking them
+3. **UUID registration instability** - lsd occasionally re-registers extensions with different UUIDs
+4. **Multiple bugs being fixed** - Apple engineer (Kevin Elliott, DTS) stated in July 2025: "more bugs have been found so you're going to need to wait for more fixes"
+
+### Specific Errors We See
 
 **Mount Error:**
 ```
@@ -22,17 +40,11 @@ mount: Probing resource: The operation couldn't be completed. (com.apple.extensi
 mount: Unable to invoke task
 ```
 
-**RunningBoard Log:**
+**fskitd Log:**
 ```
-start succeeded, info=spawn failed, error=163: Security policy issue
-Process start failed with Error Domain=NSPOSIXErrorDomain Code=163 "Unknown error: 163" UserInfo={NSLocalizedDescription=Launchd job spawn failed}
+fskitd: [com.apple.FSKit:default] Incomming connection, entitled 0
+fskitd: [com.apple.FSKit:default] Hello FSClient! entitlement no
 ```
-
-**Root Cause Analysis:**
-- Error 163 is not documented in Apple's security error codes
-- RunningBoard/launchd is refusing to spawn the extension process
-- This happens even with proper code signing, notarization, and hardened runtime
-- Possibly a macOS 26 Tahoe issue with third-party FSKit extensions
 
 ### Toggle Bouncing Issue (SOLVED)
 
@@ -50,8 +62,6 @@ sudo plutil -insert 0 -string "com.loaf.app.extension" /var/root/Library/Group\ 
 sudo pkill -HUP fskitd
 ```
 
-After this, the "Module is disabled" error changes to the spawn error above.
-
 ### Library Loading (FIXED)
 
 **Problem:** Extension linked against `@rpath/libloaf.dylib` but dylib wasn't embedded.
@@ -62,7 +72,7 @@ After this, the "Module is disabled" error changes to the spawn error above.
 3. Signs dylib with Developer ID
 4. Re-signs extension and app
 
-### What We've Tried (for spawn error):
+### What We've Tried:
 1. ✅ Signed with Developer ID Application certificate
 2. ✅ Notarized with Apple
 3. ✅ Hardened runtime enabled
@@ -72,14 +82,23 @@ After this, the "Module is disabled" error changes to the spawn error above.
 7. ✅ Embedded and signed libloaf.dylib in extension's Frameworks folder
 8. ✅ Manually enabled in root's enabledModules.plist
 9. ✅ Restarted fskitd (`sudo pkill -HUP fskitd`)
-10. ❌ Static linking (breaks notarization)
+10. ✅ Tested FSKitSample reference implementation (same failure)
+11. ❌ Static linking (breaks notarization)
 
-### Potential Causes for Spawn Error
+## Root Cause
 
-1. **macOS 26 (Tahoe) restriction** - FSKit may have additional restrictions for third-party extensions
-2. **Missing undocumented entitlement** - FSKit may require special provisioning for third-party extensions
-3. **Sandbox profile issue** - Extension's sandbox may be blocking something required for spawn
-4. **AMFI/SIP restriction** - May need to disable SIP for third-party FSKit extensions (not ideal)
+FSKit on macOS 26 has multiple bugs preventing third-party extensions from working:
+
+1. **Entitlement enforcement** - fskitd rejects connections from unprivileged clients
+2. **Permission issues** - fskitd lacks permissions to access devices when mount is called
+3. **KEXT priority** - System KEXTs are probed before FSKit modules, blocking third-party implementations
+
+Apple is actively working on fixes. Per DTS engineer Kevin Elliott (July 2025):
+> "Unfortunately, more bugs have been found so you're going to need to wait for more fixes."
+
+Related Feedback reports:
+- FB18230524 - System NTFS driver blocking FSKit modules
+- FB17772372 - Probing issues (partially fixed in macOS 15.6 beta)
 
 ## Environment
 
@@ -102,21 +121,19 @@ zig build -Doptimize=ReleaseFast
 zig build test
 ```
 
-## Workarounds to Try
+## Next Steps
 
-1. **Logout/Login or Reboot** - Clear extension cache
-2. **Disable SIP** (invasive):
-   ```bash
-   # Boot to Recovery Mode (hold Power button)
-   # Terminal: csrutil disable
-   # Reboot, then:
-   sudo systemextensionsctl developer on
-   ```
-3. **Check Apple Developer Forums** - Others may have encountered this
-4. **File Apple Feedback** - FB# for FSKit toggle issue
+1. **Wait for macOS fixes** - Apple is actively fixing FSKit bugs
+2. **File Apple Feedback** - Report specific issues with error logs
+3. **Monitor forums** - Watch [FSKit tag on Apple Developer Forums](https://developer.apple.com/forums/tags/fskit)
+4. **Test on future macOS updates** - Check if 26.2+ or 27 fixes the issues
 
 ## References
 
+- [FSKit module mount fails with permissions](https://developer.apple.com/forums/thread/788609) - Main issue thread
+- [FSKit Sandbox restrictions](https://developer.apple.com/forums/thread/808246) - Sandbox workarounds
+- [Cryptomator FSKit support issue](https://github.com/cryptomator/cryptomator/issues/3583) - Similar problems
+- [macFUSE FSKit issue](https://github.com/macfuse/macfuse/issues/1025) - Framework status
 - [FSKitSample](https://github.com/KhaosT/FSKitSample) - Reference implementation (deps/FSKitSample)
 - [Apple FSKit Forums](https://developer.apple.com/forums/tags/fskit)
 - [Eclectic Light FSKit Overview](https://eclecticlight.co/2024/06/26/how-file-systems-can-change-in-sequoia-with-fskit/)
