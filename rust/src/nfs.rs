@@ -660,6 +660,7 @@ mod tests {
 /// NFS server configuration
 pub struct NfsServer {
     pub port: u16,
+    #[allow(dead_code)]
     pub overlay: NfsOverlay,
 }
 
@@ -707,21 +708,50 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
         "nolocks,vers=3,tcp,rsize=131072,port={port},mountport={port}"
     );
 
-    let output = Command::new("mount_nfs")
+    tracing::debug!("executing: mount_nfs -o {mount_opts} localhost:/ {mount_point:?}");
+
+    // Add timeout to prevent hanging indefinitely
+    let mount_future = Command::new("mount_nfs")
         .arg("-o")
         .arg(&mount_opts)
         .arg(format!("localhost:/"))
         .arg(mount_point)
-        .output()
+        .output();
+
+    let output = tokio::time::timeout(std::time::Duration::from_secs(30), mount_future)
         .await
+        .wrap_err_with(|| {
+            format!(
+                "mount_nfs command timed out after 30 seconds\n\
+                 This usually means:\n\
+                 - NFS server is not responding on port {port}\n\
+                 - Firewall is blocking localhost:{port}\n\
+                 - Another process is already using port {port}"
+            )
+        })?
         .wrap_err("failed to execute mount_nfs command")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Provide helpful error messages based on common failure modes
+        let hint = if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
+            "\nHint: Try running with sudo or check NFS permissions"
+        } else if stderr.contains("already mounted") || stderr.contains("busy") {
+            "\nHint: Directory is already mounted. Unmount first with: loaf unmount"
+        } else if stderr.contains("Connection refused") || stderr.contains("RPC") {
+            "\nHint: NFS server may not be running or port is in use"
+        } else {
+            ""
+        };
+
         color_eyre::eyre::bail!(
-            "mount_nfs failed with status {}: {}",
+            "mount_nfs failed (exit code {}):\n{}{}\n{}",
             output.status,
-            stderr.trim()
+            stderr.trim(),
+            if !stdout.is_empty() { format!("\n{}", stdout.trim()) } else { String::new() },
+            hint
         );
     }
 
@@ -733,6 +763,8 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
 pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()> {
     use tokio::process::Command;
 
+    tracing::debug!("executing: umount {mount_point:?}");
+
     let output = Command::new("umount")
         .arg(mount_point)
         .output()
@@ -741,10 +773,25 @@ pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Provide helpful error messages based on common failure modes
+        let hint = if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
+            "\nHint: Try running with sudo: sudo loaf unmount"
+        } else if stderr.contains("not currently mounted") || stderr.contains("not a mount point") {
+            "\nHint: Directory is not currently mounted"
+        } else if stderr.contains("busy") || stderr.contains("in use") {
+            "\nHint: Files may be in use. Close any programs accessing the mount point and try again"
+        } else {
+            ""
+        };
+
         color_eyre::eyre::bail!(
-            "umount failed with status {}: {}",
+            "umount failed (exit code {}):\n{}{}\n{}",
             output.status,
-            stderr.trim()
+            stderr.trim(),
+            if !stdout.is_empty() { format!("\n{}", stdout.trim()) } else { String::new() },
+            hint
         );
     }
 

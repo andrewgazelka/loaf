@@ -80,6 +80,7 @@ impl TryFrom<i64> for ItemType {
 #[derive(Debug, Clone)]
 pub struct Attrs {
     pub file_id: u64,
+    #[allow(dead_code)]
     pub parent_id: u64,
     pub item_type: ItemType,
     pub mode: u32,

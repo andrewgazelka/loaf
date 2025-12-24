@@ -8,6 +8,10 @@ use color_eyre::eyre::WrapErr as _;
 #[derive(clap::Parser)]
 #[command(name = "loaf", version, about = "Overlay filesystem for macOS via NFS")]
 struct Cli {
+    /// Enable verbose debug logging (equivalent to RUST_LOG=debug)
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -56,11 +60,19 @@ enum Commands {
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-
     let cli = <Cli as clap::Parser>::parse();
+
+    // Set up logging based on --verbose flag
+    let env_filter = if cli.verbose {
+        tracing_subscriber::EnvFilter::new("debug")
+    } else {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+    };
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 
     match cli.command {
         Commands::Mount { path, port } => mount_command(path, port).await?,
@@ -82,6 +94,21 @@ struct MountState {
 }
 
 async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<()> {
+    // Validate path exists
+    if !path.exists() {
+        color_eyre::eyre::bail!(
+            "mount path does not exist: {path:?}\n\
+             Create the directory first with: mkdir -p {path:?}"
+        );
+    }
+
+    if !path.is_dir() {
+        color_eyre::eyre::bail!(
+            "mount path is not a directory: {path:?}\n\
+             Loaf can only mount on directories"
+        );
+    }
+
     let path = path.canonicalize()
         .wrap_err_with(|| format!("failed to canonicalize mount path {path:?}"))?;
 
@@ -89,7 +116,11 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
     let overlay_path = path.join(".loaf");
     if overlay_path.exists() {
         color_eyre::eyre::bail!(
-            "overlay already exists at {overlay_path:?} - unmount first or choose different directory"
+            "overlay already exists at {overlay_path:?}\n\
+             Either:\n\
+             - Unmount first with: loaf unmount {path:?}\n\
+             - Delete existing overlay with: loaf reject {path:?}\n\
+             - Choose a different directory"
         );
     }
 
@@ -144,6 +175,13 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
 }
 
 async fn unmount_command(path: PathBuf) -> color_eyre::Result<()> {
+    if !path.exists() {
+        color_eyre::eyre::bail!(
+            "path does not exist: {path:?}\n\
+             Check that the path is correct"
+        );
+    }
+
     let path = path.canonicalize()
         .wrap_err_with(|| format!("failed to canonicalize path {path:?}"))?;
 
@@ -167,6 +205,14 @@ async fn unmount_command(path: PathBuf) -> color_eyre::Result<()> {
 }
 
 async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<()> {
+    // Validate command exists
+    if which::which(&command).is_err() {
+        color_eyre::eyre::bail!(
+            "command not found: {command}\n\
+             Make sure the command is installed and available in PATH"
+        );
+    }
+
     // Get current working directory as base path
     let base_path = std::env::current_dir()
         .wrap_err("failed to get current working directory")?;

@@ -3,6 +3,14 @@ name = "loaf"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "loaf"
+path = "src/lib.rs"
+
+[[bin]]
+name = "loaf"
+path = "src/main.rs"
+
 [dependencies]
 nfsserve = "0.10.2"
 rusqlite = { version = "0.38.0", features = ["bundled"] }
@@ -11,10 +19,11 @@ color-eyre = "0.6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "fs", "process", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "fs", "process", "signal", "time"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+which = "7"
 
 [dev-dependencies]
