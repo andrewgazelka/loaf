@@ -1,6 +1,3 @@
-[submodule "deps/zig-sqlite"]
-	path = deps/zig-sqlite
-	url = https://github.com/vrischmann/zig-sqlite.git
 [submodule "deps/FSKitSample"]
 	path = deps/FSKitSample
 	url = https://github.com/KhaosT/FSKitSample.git
