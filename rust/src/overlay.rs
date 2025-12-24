@@ -425,6 +425,60 @@ impl OverlayFs {
 
         Ok(entries)
     }
+
+    pub fn get_all_inodes(&self) -> color_eyre::Result<Vec<(String, ItemType)>> {
+        use color_eyre::eyre::WrapErr as _;
+
+        let mut stmt = self.db.conn()
+            .prepare("SELECT path, type FROM inodes WHERE id != 1")
+            .wrap_err("failed to prepare get_all_inodes query")?;
+
+        let inodes = stmt
+            .query_map([], |row| {
+                let path: String = row.get(0)?;
+                let item_type = ItemType::try_from(row.get::<_, i64>(1)?).unwrap();
+                Ok((path, item_type))
+            })
+            .wrap_err("failed to query all inodes")?
+            .collect::<Result<Vec<_>, _>>()
+            .wrap_err("failed to collect inodes")?;
+
+        Ok(inodes)
+    }
+
+    pub fn get_all_whiteouts(&self) -> color_eyre::Result<Vec<String>> {
+        use color_eyre::eyre::WrapErr as _;
+
+        let mut stmt = self.db.conn()
+            .prepare("SELECT path FROM whiteouts")
+            .wrap_err("failed to prepare get_all_whiteouts query")?;
+
+        let whiteouts = stmt
+            .query_map([], |row| row.get(0))
+            .wrap_err("failed to query all whiteouts")?
+            .collect::<Result<Vec<_>, _>>()
+            .wrap_err("failed to collect whiteouts")?;
+
+        Ok(whiteouts)
+    }
+
+    pub fn base_path(&self) -> &Path {
+        &self.base_path
+    }
+
+    pub fn read_file_data(&self, path: &str) -> color_eyre::Result<Vec<u8>> {
+        use color_eyre::eyre::WrapErr as _;
+
+        let data = self.db.conn()
+            .query_row(
+                "SELECT fd.data FROM file_data fd JOIN inodes i ON i.id = fd.inode_id WHERE i.path = ?",
+                [path],
+                |row| row.get(0),
+            )
+            .wrap_err_with(|| format!("failed to read file data at {path:?}"))?;
+
+        Ok(data)
+    }
 }
 
 #[cfg(test)]

@@ -135,6 +135,10 @@ impl Database {
         Ok(Self { conn })
     }
 
+    pub fn conn(&self) -> &rusqlite::Connection {
+        &self.conn
+    }
+
     pub fn set_base_path(&self, base_path: &str) -> color_eyre::Result<()> {
         use color_eyre::eyre::WrapErr as _;
 

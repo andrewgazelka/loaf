@@ -66,21 +66,9 @@ async fn main() -> color_eyre::Result<()> {
         Commands::Mount { path, port } => mount_command(path, port).await?,
         Commands::Unmount { path } => unmount_command(path).await?,
         Commands::Run { command, args } => run_command(command, args).await?,
-        Commands::Diff { overlay } => {
-            let _ = overlay;
-            tracing::info!("diff command not yet implemented");
-            color_eyre::eyre::bail!("diff command not yet implemented");
-        }
-        Commands::Accept { overlay } => {
-            let _ = overlay;
-            tracing::info!("accept command not yet implemented");
-            color_eyre::eyre::bail!("accept command not yet implemented");
-        }
-        Commands::Reject { overlay } => {
-            let _ = overlay;
-            tracing::info!("reject command not yet implemented");
-            color_eyre::eyre::bail!("reject command not yet implemented");
-        }
+        Commands::Diff { overlay } => diff_command(overlay).await?,
+        Commands::Accept { overlay } => accept_command(overlay).await?,
+        Commands::Reject { overlay } => reject_command(overlay).await?,
     }
 
     Ok(())
@@ -240,7 +228,7 @@ async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<(
     let _ = server_task.await; // Ignore abort error
 
     // Open overlay to check for changes
-    let overlay = overlay::OverlayFs::new(&overlay_path, &base_path)
+    let mut overlay = overlay::OverlayFs::new(&overlay_path, &base_path)
         .wrap_err("failed to reopen overlay")?;
 
     let changes = get_overlay_changes(&overlay)
@@ -270,7 +258,7 @@ async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<(
     let response = response.trim().to_lowercase();
     if response == "y" || response == "yes" {
         println!("\nApplying changes...");
-        apply_overlay_changes(&overlay)
+        apply_overlay_changes(&mut overlay)
             .wrap_err("failed to apply overlay changes")?;
         println!("✓ Changes applied successfully");
     } else {
@@ -280,22 +268,268 @@ async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<(
     Ok(())
 }
 
+fn find_overlay_path(overlay_arg: Option<PathBuf>) -> color_eyre::Result<PathBuf> {
+    use color_eyre::eyre::WrapErr as _;
+
+    if let Some(path) = overlay_arg {
+        if !path.exists() {
+            color_eyre::eyre::bail!("overlay database not found at {path:?}");
+        }
+        return Ok(path);
+    }
+
+    let mut current = std::env::current_dir()
+        .wrap_err("failed to get current directory")?;
+
+    loop {
+        let candidate = current.join(".loaf");
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+
+        if !current.pop() {
+            color_eyre::eyre::bail!(
+                "no .loaf file found in current directory or any parent directory\n\
+                 Specify path explicitly with --overlay or create one with 'loaf mount'"
+            );
+        }
+    }
+}
+
+async fn diff_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+    use color_eyre::eyre::WrapErr as _;
+
+    let overlay_path = find_overlay_path(overlay_arg)?;
+
+    let base_path = {
+        let temp_db = crate::db::Database::open(&overlay_path)
+            .wrap_err("failed to open overlay database")?;
+        let base_path_str = temp_db.get_base_path()
+            .wrap_err("failed to get base path from overlay")?;
+        PathBuf::from(base_path_str)
+    };
+
+    let overlay = overlay::OverlayFs::new(&overlay_path, &base_path)
+        .wrap_err("failed to open overlay")?;
+
+    let changes = get_overlay_changes(&overlay)
+        .wrap_err("failed to compute changes")?;
+
+    if changes.is_empty() {
+        println!("No changes in overlay.");
+        return Ok(());
+    }
+
+    println!("Changes in overlay (relative to {base_path:?}):\n");
+    for change in changes {
+        println!("{change}");
+    }
+
+    Ok(())
+}
+
+async fn accept_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+    use color_eyre::eyre::WrapErr as _;
+
+    let overlay_path = find_overlay_path(overlay_arg)?;
+
+    let base_path = {
+        let temp_db = crate::db::Database::open(&overlay_path)
+            .wrap_err("failed to open overlay database")?;
+        let base_path_str = temp_db.get_base_path()
+            .wrap_err("failed to get base path from overlay")?;
+        PathBuf::from(base_path_str)
+    };
+
+    let mut overlay = overlay::OverlayFs::new(&overlay_path, &base_path)
+        .wrap_err("failed to open overlay")?;
+
+    let changes = get_overlay_changes(&overlay)
+        .wrap_err("failed to compute changes")?;
+
+    if changes.is_empty() {
+        println!("No changes to apply.");
+        return Ok(());
+    }
+
+    println!("Changes to apply:\n");
+    for change in &changes {
+        println!("{change}");
+    }
+
+    println!();
+    print!("Apply these changes to {base_path:?}? [y/N]: ");
+    use std::io::Write as _;
+    std::io::stdout().flush()?;
+
+    let mut response = String::new();
+    std::io::stdin().read_line(&mut response)
+        .wrap_err("failed to read user input")?;
+
+    let response = response.trim().to_lowercase();
+    if response != "y" && response != "yes" {
+        println!("Cancelled.");
+        return Ok(());
+    }
+
+    println!("\nApplying changes...");
+    apply_overlay_changes(&mut overlay)
+        .wrap_err("failed to apply changes")?;
+
+    println!("✓ Changes applied successfully");
+    println!("\nOverlay database preserved at {overlay_path:?}");
+    println!("You can delete it with 'loaf reject' or keep it for reference");
+
+    Ok(())
+}
+
+async fn reject_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+    use color_eyre::eyre::WrapErr as _;
+
+    let overlay_path = find_overlay_path(overlay_arg)?;
+
+    println!("This will delete the overlay database at {overlay_path:?}");
+    println!("All changes will be permanently lost.");
+    print!("Continue? [y/N]: ");
+    use std::io::Write as _;
+    std::io::stdout().flush()?;
+
+    let mut response = String::new();
+    std::io::stdin().read_line(&mut response)
+        .wrap_err("failed to read user input")?;
+
+    let response = response.trim().to_lowercase();
+    if response != "y" && response != "yes" {
+        println!("Cancelled.");
+        return Ok(());
+    }
+
+    std::fs::remove_file(&overlay_path)
+        .wrap_err_with(|| format!("failed to delete overlay database at {overlay_path:?}"))?;
+
+    let state_path = overlay_path.with_extension("loaf.state");
+    if state_path.exists() {
+        std::fs::remove_file(&state_path).ok();
+    }
+
+    println!("✓ Overlay database deleted");
+
+    Ok(())
+}
+
 /// Compute list of changes from overlay database
-fn get_overlay_changes(_overlay: &overlay::OverlayFs) -> color_eyre::Result<Vec<String>> {
-    // For now, just return a placeholder message
-    // Full implementation would query the database for all inodes
-    // and compare with real filesystem
-    Ok(vec!["[Change detection not yet implemented]".to_string()])
+fn get_overlay_changes(overlay: &overlay::OverlayFs) -> color_eyre::Result<Vec<String>> {
+    use color_eyre::eyre::WrapErr as _;
+
+    let mut changes = Vec::new();
+
+    let inodes = overlay.get_all_inodes()
+        .wrap_err("failed to get all inodes")?;
+
+    for (path, item_type) in inodes {
+        let real_path = overlay.base_path().join(path.strip_prefix('/').unwrap_or(&path));
+
+        let type_str = match item_type {
+            crate::db::ItemType::File => "file",
+            crate::db::ItemType::Directory => "dir",
+            crate::db::ItemType::Symlink => "symlink",
+        };
+
+        if real_path.exists() {
+            changes.push(format!("  \x1b[33mM\x1b[0m {type_str:8} {path}"));
+        } else {
+            changes.push(format!("  \x1b[32mA\x1b[0m {type_str:8} {path}"));
+        }
+    }
+
+    let whiteouts = overlay.get_all_whiteouts()
+        .wrap_err("failed to get all whiteouts")?;
+
+    for path in whiteouts {
+        changes.push(format!("  \x1b[31mD\x1b[0m          {path}"));
+    }
+
+    changes.sort();
+    Ok(changes)
 }
 
 /// Apply overlay changes to real filesystem
-fn apply_overlay_changes(_overlay: &overlay::OverlayFs) -> color_eyre::Result<()> {
-    // For now, just return success
-    // Full implementation would:
-    // 1. Iterate all inodes in database
-    // 2. Copy modified files to real filesystem
-    // 3. Create new directories
-    // 4. Delete whiteout entries
-    // 5. Update permissions/timestamps
+fn apply_overlay_changes(overlay: &mut overlay::OverlayFs) -> color_eyre::Result<()> {
+    use color_eyre::eyre::WrapErr as _;
+
+    let base_path = overlay.base_path().to_path_buf();
+    let inodes = overlay.get_all_inodes()
+        .wrap_err("failed to get all inodes")?;
+
+    for (path, item_type) in inodes {
+        let real_path = base_path.join(path.strip_prefix('/').unwrap_or(&path));
+
+        match item_type {
+            crate::db::ItemType::Directory => {
+                std::fs::create_dir_all(&real_path)
+                    .wrap_err_with(|| format!("failed to create directory {real_path:?}"))?;
+            }
+            crate::db::ItemType::File => {
+                if let Some(parent) = real_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .wrap_err_with(|| format!("failed to create parent directory {parent:?}"))?;
+                }
+
+                let data = overlay.read_file_data(&path)
+                    .wrap_err_with(|| format!("failed to read file data for {path:?}"))?;
+
+                std::fs::write(&real_path, &data)
+                    .wrap_err_with(|| format!("failed to write file {real_path:?}"))?;
+
+                let root_id = overlay.root_id();
+                let inode = overlay.lookup(root_id, path.strip_prefix('/').unwrap_or(&path))
+                    .wrap_err_with(|| format!("failed to lookup {path:?}"))?;
+                let attrs = overlay.getattr(inode)
+                    .wrap_err_with(|| format!("failed to get attrs for {path:?}"))?;
+
+                use std::os::unix::fs::PermissionsExt as _;
+                let perms = std::fs::Permissions::from_mode(attrs.mode);
+                std::fs::set_permissions(&real_path, perms)
+                    .wrap_err_with(|| format!("failed to set permissions for {real_path:?}"))?;
+            }
+            crate::db::ItemType::Symlink => {
+                if let Some(parent) = real_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .wrap_err_with(|| format!("failed to create parent directory {parent:?}"))?;
+                }
+
+                let root_id = overlay.root_id();
+                let inode = overlay.lookup(root_id, path.strip_prefix('/').unwrap_or(&path))
+                    .wrap_err_with(|| format!("failed to lookup symlink {path:?}"))?;
+                let target = overlay.readlink(inode)
+                    .wrap_err_with(|| format!("failed to read symlink target for {path:?}"))?;
+
+                if real_path.exists() || real_path.is_symlink() {
+                    std::fs::remove_file(&real_path).ok();
+                }
+
+                std::os::unix::fs::symlink(&target, &real_path)
+                    .wrap_err_with(|| format!("failed to create symlink {real_path:?} -> {target:?}"))?;
+            }
+        }
+    }
+
+    let whiteouts = overlay.get_all_whiteouts()
+        .wrap_err("failed to get all whiteouts")?;
+
+    for path in whiteouts {
+        let real_path = base_path.join(path.strip_prefix('/').unwrap_or(&path));
+
+        if real_path.exists() {
+            if real_path.is_dir() {
+                std::fs::remove_dir_all(&real_path)
+                    .wrap_err_with(|| format!("failed to remove directory {real_path:?}"))?;
+            } else {
+                std::fs::remove_file(&real_path)
+                    .wrap_err_with(|| format!("failed to remove file {real_path:?}"))?;
+            }
+        }
+    }
+
     Ok(())
 }
