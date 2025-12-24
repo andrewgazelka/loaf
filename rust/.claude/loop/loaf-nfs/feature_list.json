@@ -104,7 +104,7 @@
     ],
     "depends_on": [4],
     "estimated_files": ["src/nfs.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
