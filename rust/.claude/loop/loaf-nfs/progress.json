@@ -1,9 +1,9 @@
 {
   "summary": {
     "total_features": 11,
-    "passing": 5,
+    "passing": 8,
     "blocked": 0,
-    "total_iterations": 4,
+    "total_iterations": 6,
     "started_at": "2025-12-24T00:00:00Z"
   },
   "blocked_features": [],
@@ -31,6 +31,18 @@
       "action": "completed",
       "feature_ids": [5],
       "message": "Added NFS server infrastructure: NfsServer::start() with port binding, mount_nfs/unmount_nfs helpers for macOS mount_nfs command"
+    },
+    {
+      "timestamp": "2025-12-24T23:00:00Z",
+      "action": "completed",
+      "feature_ids": [6, 7],
+      "message": "Implemented CLI with clap (all commands defined) and mount/unmount commands with state tracking, signal handling, and user-friendly output"
+    },
+    {
+      "timestamp": "2025-12-24T23:30:00Z",
+      "action": "completed",
+      "feature_ids": [8],
+      "message": "Implemented run command: creates temporary overlay, mounts via NFS, runs command in sandbox, unmounts, prompts accept/reject (change detection stubs for phase 3)"
     }
   ]
 }
