@@ -13,3 +13,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "fs", "process", "signal"] }
 async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3"

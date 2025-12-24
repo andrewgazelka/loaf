@@ -12,7 +12,7 @@
     ],
     "depends_on": [],
     "estimated_files": ["Cargo.toml"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -32,7 +32,7 @@
     ],
     "depends_on": [],
     "estimated_files": ["src/db.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0

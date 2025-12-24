@@ -505,6 +505,22 @@ impl Database {
 
         Ok(())
     }
+
+    /// Update mode (permissions) for a path
+    pub fn update_mode_by_path(&self, path: &str, mode: u32) -> color_eyre::Result<()> {
+        use color_eyre::eyre::WrapErr as _;
+
+        let (sec, nsec) = now_timespec();
+
+        self.conn
+            .execute(
+                "UPDATE inodes SET mode = ?, ctime_sec = ?, ctime_nsec = ? WHERE path = ?",
+                rusqlite::params![mode, sec, nsec, path],
+            )
+            .wrap_err_with(|| format!("failed to update mode for {path:?}"))?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

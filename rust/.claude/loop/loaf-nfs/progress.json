@@ -1,11 +1,18 @@
 {
   "summary": {
     "total_features": 11,
-    "passing": 0,
+    "passing": 2,
     "blocked": 0,
-    "total_iterations": 0,
+    "total_iterations": 1,
     "started_at": "2025-12-24T00:00:00Z"
   },
   "blocked_features": [],
-  "recent_entries": []
+  "recent_entries": [
+    {
+      "timestamp": "2025-12-24T12:00:00Z",
+      "action": "completed",
+      "feature_ids": [1, 2],
+      "message": "Added async runtime dependencies and completed database queries with tests"
+    }
+  ]
 }
