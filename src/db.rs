@@ -166,11 +166,7 @@ impl Database {
 
     pub fn exists_by_path(&self, path: &str) -> bool {
         self.conn
-            .query_row(
-                "SELECT 1 FROM inodes WHERE path = ?",
-                [path],
-                |_| Ok(()),
-            )
+            .query_row("SELECT 1 FROM inodes WHERE path = ?", [path], |_| Ok(()))
             .is_ok()
     }
 
@@ -205,7 +201,12 @@ impl Database {
             .wrap_err_with(|| format!("failed to get attrs for path {path:?}"))
     }
 
-    pub fn create_by_path(&self, path: &str, item_type: ItemType, mode: u32) -> color_eyre::Result<u64> {
+    pub fn create_by_path(
+        &self,
+        path: &str,
+        item_type: ItemType,
+        mode: u32,
+    ) -> color_eyre::Result<u64> {
         use color_eyre::eyre::WrapErr as _;
 
         let (sec, nsec) = now_timespec();
@@ -219,7 +220,20 @@ impl Database {
                 "INSERT INTO inodes (parent_id, name, path, type, mode, atime_sec, atime_nsec,
                     mtime_sec, mtime_nsec, ctime_sec, ctime_nsec, btime_sec, btime_nsec)
                 VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                rusqlite::params![name, path, item_type as u8, mode, sec, nsec, sec, nsec, sec, nsec, sec, nsec],
+                rusqlite::params![
+                    name,
+                    path,
+                    item_type as u8,
+                    mode,
+                    sec,
+                    nsec,
+                    sec,
+                    nsec,
+                    sec,
+                    nsec,
+                    sec,
+                    nsec
+                ],
             )
             .wrap_err_with(|| format!("failed to create inode at {path:?}"))?;
 
@@ -267,7 +281,12 @@ impl Database {
         Ok(())
     }
 
-    pub fn read_by_path(&self, path: &str, offset: u64, buf: &mut [u8]) -> color_eyre::Result<usize> {
+    pub fn read_by_path(
+        &self,
+        path: &str,
+        offset: u64,
+        buf: &mut [u8],
+    ) -> color_eyre::Result<usize> {
         use color_eyre::eyre::WrapErr as _;
 
         let data: Vec<u8> = self
@@ -295,7 +314,9 @@ impl Database {
 
         let inode_id: i64 = self
             .conn
-            .query_row("SELECT id FROM inodes WHERE path = ?", [path], |row| row.get(0))
+            .query_row("SELECT id FROM inodes WHERE path = ?", [path], |row| {
+                row.get(0)
+            })
             .wrap_err_with(|| format!("failed to find inode for {path:?}"))?;
 
         let current: Vec<u8> = self
@@ -370,7 +391,10 @@ impl Database {
     }
 
     /// List all children of a directory by parent path
-    pub fn list_children_by_parent_path(&self, parent_path: &str) -> color_eyre::Result<Vec<DirEntry>> {
+    pub fn list_children_by_parent_path(
+        &self,
+        parent_path: &str,
+    ) -> color_eyre::Result<Vec<DirEntry>> {
         use color_eyre::eyre::WrapErr as _;
 
         let mut stmt = self
@@ -441,7 +465,9 @@ impl Database {
 
         let inode_id: i64 = self
             .conn
-            .query_row("SELECT id FROM inodes WHERE path = ?", [path], |row| row.get(0))
+            .query_row("SELECT id FROM inodes WHERE path = ?", [path], |row| {
+                row.get(0)
+            })
             .wrap_err_with(|| format!("failed to find inode for {path:?}"))?;
 
         let current: Vec<u8> = self

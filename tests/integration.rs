@@ -10,11 +10,9 @@ async fn test_nfs_server_basic_workflow() -> color_eyre::Result<()> {
     init_test();
 
     // Create temporary base directory
-    let temp_dir = tempfile::tempdir()
-        .wrap_err("failed to create temp directory")?;
+    let temp_dir = tempfile::tempdir().wrap_err("failed to create temp directory")?;
     let base_path = temp_dir.path().join("base");
-    std::fs::create_dir(&base_path)
-        .wrap_err("failed to create base directory")?;
+    std::fs::create_dir(&base_path).wrap_err("failed to create base directory")?;
 
     // Create a file in the base directory to verify passthrough reads
     std::fs::write(base_path.join("existing.txt"), b"original content")
@@ -26,7 +24,8 @@ async fn test_nfs_server_basic_workflow() -> color_eyre::Result<()> {
         .wrap_err("failed to create overlay")?;
 
     // Start NFS server on random port
-    let (server, server_task) = loaf::nfs::NfsServer::start(overlay, None).await
+    let (server, server_task) = loaf::nfs::NfsServer::start(overlay, None)
+        .await
         .wrap_err("failed to start NFS server")?;
 
     println!("✓ NFS server started on port {}", server.port);
@@ -56,25 +55,29 @@ async fn test_overlay_operations() -> color_eyre::Result<()> {
 
     // Test 1: Lookup existing file (passthrough)
     let root_id = overlay.root_id();
-    let file_id = overlay.lookup(root_id, "existing.txt")
+    let file_id = overlay
+        .lookup(root_id, "existing.txt")
         .wrap_err("failed to lookup existing file")?;
     println!("✓ Looked up existing file: inode {}", file_id);
 
     // Test 2: Read existing file content
     let mut buf = vec![0u8; 100];
-    let n = overlay.read(file_id, 0, &mut buf)
+    let n = overlay
+        .read(file_id, 0, &mut buf)
         .wrap_err("failed to read file")?;
     buf.truncate(n);
     assert_eq!(&buf, b"base content");
     println!("✓ Read existing file via passthrough");
 
     // Test 3: Create new file
-    let new_file_id = overlay.create(root_id, "new.txt", loaf::db::ItemType::File, 0o644)
+    let new_file_id = overlay
+        .create(root_id, "new.txt", loaf::db::ItemType::File, 0o644)
         .wrap_err("failed to create file")?;
     println!("✓ Created new file: inode {}", new_file_id);
 
     // Test 4: Write to new file
-    overlay.write(new_file_id, 0, b"hello world")
+    overlay
+        .write(new_file_id, 0, b"hello world")
         .wrap_err("failed to write to file")?;
     println!("✓ Wrote data to new file");
 
@@ -86,12 +89,14 @@ async fn test_overlay_operations() -> color_eyre::Result<()> {
     println!("✓ Read back written data");
 
     // Test 6: Create directory
-    let dir_id = overlay.mkdir(root_id, "testdir", 0o755)
+    let dir_id = overlay
+        .mkdir(root_id, "testdir", 0o755)
         .wrap_err("failed to create directory")?;
     println!("✓ Created directory: inode {}", dir_id);
 
     // Test 7: List directory
-    let entries = overlay.readdir(root_id)
+    let entries = overlay
+        .readdir(root_id)
         .wrap_err("failed to list directory")?;
     // The overlay should contain new.txt and testdir, but existing.txt is only in base
     // so readdir might only show overlay entries
@@ -99,7 +104,8 @@ async fn test_overlay_operations() -> color_eyre::Result<()> {
     println!("✓ Listed directory: {} entries", entries.len());
 
     // Test 8: Delete file (creates whiteout)
-    overlay.remove(new_file_id)
+    overlay
+        .remove(new_file_id)
         .wrap_err("failed to remove file")?;
     println!("✓ Removed file (created whiteout)");
 
@@ -109,9 +115,11 @@ async fn test_overlay_operations() -> color_eyre::Result<()> {
     println!("✓ Deleted file is no longer accessible");
 
     // Test 10: Create symlink
-    let link_id = overlay.symlink(root_id, "link.txt", "/target/path")
+    let link_id = overlay
+        .symlink(root_id, "link.txt", "/target/path")
         .wrap_err("failed to create symlink")?;
-    let target = overlay.readlink(link_id)
+    let target = overlay
+        .readlink(link_id)
         .wrap_err("failed to read symlink")?;
     assert_eq!(target, "/target/path");
     println!("✓ Created and read symlink");
@@ -137,14 +145,19 @@ async fn test_overlay_rename() -> color_eyre::Result<()> {
     overlay.write(file_id, 0, b"rename test")?;
 
     // Rename file
-    overlay.rename(root_id, "old.txt", root_id, "new.txt")
+    overlay
+        .rename(root_id, "old.txt", root_id, "new.txt")
         .wrap_err("failed to rename file")?;
 
     // Verify old name doesn't exist
-    assert!(overlay.lookup(root_id, "old.txt").is_err(), "old file still exists");
+    assert!(
+        overlay.lookup(root_id, "old.txt").is_err(),
+        "old file still exists"
+    );
 
     // Verify new name exists
-    let new_id = overlay.lookup(root_id, "new.txt")
+    let new_id = overlay
+        .lookup(root_id, "new.txt")
         .wrap_err("failed to lookup renamed file")?;
 
     // Verify content is preserved

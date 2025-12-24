@@ -174,16 +174,14 @@ impl NFSFileSystem for NfsOverlay {
                 set_mtime::DONT_CHANGE => None,
             };
 
-            overlay
-                .setattr(id, mode, size, atime, mtime)
-                .map_err(|e| {
-                    tracing::error!("setattr failed for {}: {}", id, e);
-                    if e.to_string().contains("not found") {
-                        nfsstat3::NFS3ERR_NOENT
-                    } else {
-                        Self::map_err(e)
-                    }
-                })?;
+            overlay.setattr(id, mode, size, atime, mtime).map_err(|e| {
+                tracing::error!("setattr failed for {}: {}", id, e);
+                if e.to_string().contains("not found") {
+                    nfsstat3::NFS3ERR_NOENT
+                } else {
+                    Self::map_err(e)
+                }
+            })?;
 
             // Return updated attributes
             let attrs = overlay.getattr(id).map_err(Self::map_err)?;
@@ -193,7 +191,12 @@ impl NFSFileSystem for NfsOverlay {
         .unwrap()
     }
 
-    async fn read(&self, id: fileid3, offset: u64, count: u32) -> Result<(Vec<u8>, bool), nfsstat3> {
+    async fn read(
+        &self,
+        id: fileid3,
+        offset: u64,
+        count: u32,
+    ) -> Result<(Vec<u8>, bool), nfsstat3> {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
@@ -339,7 +342,9 @@ impl NFSFileSystem for NfsOverlay {
         tokio::task::spawn_blocking(move || {
             let mut overlay = inner.lock().unwrap();
 
-            let inode = overlay.lookup(dirid, &name).map_err(|_| nfsstat3::NFS3ERR_NOENT)?;
+            let inode = overlay
+                .lookup(dirid, &name)
+                .map_err(|_| nfsstat3::NFS3ERR_NOENT)?;
 
             overlay.remove(inode).map_err(|e| {
                 tracing::error!("remove failed for {}/{}: {}", dirid, name, e);
@@ -542,9 +547,7 @@ mod tests {
         let (nfs, _temp) = setup_test_nfs().await?;
 
         let filename = b"test.txt".to_vec();
-        let (file_id, attrs) = nfs
-            .create(1, &filename, sattr3::default())
-            .await?;
+        let (file_id, attrs) = nfs.create(1, &filename, sattr3::default()).await?;
 
         assert_eq!(attrs.ftype, ftype3::NF3REG);
 
@@ -667,7 +670,10 @@ pub struct NfsServer {
 impl NfsServer {
     /// Start NFS server on a random port (or specified port if provided)
     /// Returns the actual port bound and the server task handle
-    pub async fn start(overlay: OverlayFs, port: Option<u16>) -> color_eyre::Result<(Self, tokio::task::JoinHandle<()>)> {
+    pub async fn start(
+        overlay: OverlayFs,
+        port: Option<u16>,
+    ) -> color_eyre::Result<(Self, tokio::task::JoinHandle<()>)> {
         let nfs_overlay = NfsOverlay::new(overlay);
         let listener = nfsserve::tcp::NFSTcpListener::bind(
             &format!("127.0.0.1:{}", port.unwrap_or(0)),
@@ -704,9 +710,7 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
         .await
         .wrap_err_with(|| format!("failed to create mount point {mount_point:?}"))?;
 
-    let mount_opts = format!(
-        "nolocks,vers=3,tcp,rsize=131072,port={port},mountport={port}"
-    );
+    let mount_opts = format!("nolocks,vers=3,tcp,rsize=131072,port={port},mountport={port}");
 
     tracing::debug!("executing: mount_nfs -o {mount_opts} localhost:/ {mount_point:?}");
 
@@ -736,21 +740,26 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         // Provide helpful error messages based on common failure modes
-        let hint = if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
-            "\nHint: Try running with sudo or check NFS permissions"
-        } else if stderr.contains("already mounted") || stderr.contains("busy") {
-            "\nHint: Directory is already mounted. Unmount first with: loaf unmount"
-        } else if stderr.contains("Connection refused") || stderr.contains("RPC") {
-            "\nHint: NFS server may not be running or port is in use"
-        } else {
-            ""
-        };
+        let hint =
+            if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
+                "\nHint: Try running with sudo or check NFS permissions"
+            } else if stderr.contains("already mounted") || stderr.contains("busy") {
+                "\nHint: Directory is already mounted. Unmount first with: loaf unmount"
+            } else if stderr.contains("Connection refused") || stderr.contains("RPC") {
+                "\nHint: NFS server may not be running or port is in use"
+            } else {
+                ""
+            };
 
         color_eyre::eyre::bail!(
             "mount_nfs failed (exit code {}):\n{}{}\n{}",
             output.status,
             stderr.trim(),
-            if !stdout.is_empty() { format!("\n{}", stdout.trim()) } else { String::new() },
+            if !stdout.is_empty() {
+                format!("\n{}", stdout.trim())
+            } else {
+                String::new()
+            },
             hint
         );
     }
@@ -776,7 +785,9 @@ pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         // Provide helpful error messages based on common failure modes
-        let hint = if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
+        let hint = if stderr.contains("Permission denied")
+            || stderr.contains("Operation not permitted")
+        {
             "\nHint: Try running with sudo: sudo loaf unmount"
         } else if stderr.contains("not currently mounted") || stderr.contains("not a mount point") {
             "\nHint: Directory is not currently mounted"
@@ -790,7 +801,11 @@ pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()
             "umount failed (exit code {}):\n{}{}\n{}",
             output.status,
             stderr.trim(),
-            if !stdout.is_empty() { format!("\n{}", stdout.trim()) } else { String::new() },
+            if !stdout.is_empty() {
+                format!("\n{}", stdout.trim())
+            } else {
+                String::new()
+            },
             hint
         );
     }

@@ -140,7 +140,13 @@ impl OverlayFs {
         color_eyre::eyre::bail!("not found: {child_path:?}")
     }
 
-    pub fn create(&mut self, parent_id: u64, name: &str, item_type: ItemType, mode: u32) -> color_eyre::Result<u64> {
+    pub fn create(
+        &mut self,
+        parent_id: u64,
+        name: &str,
+        item_type: ItemType,
+        mode: u32,
+    ) -> color_eyre::Result<u64> {
         let parent_path = self
             .get_path(parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("parent inode {parent_id} not found"))?
@@ -235,7 +241,13 @@ impl OverlayFs {
             .ok_or_else(|| color_eyre::eyre::eyre!("symlink target is not valid UTF-8"))
     }
 
-    pub fn rename(&mut self, old_parent_id: u64, old_name: &str, new_parent_id: u64, new_name: &str) -> color_eyre::Result<()> {
+    pub fn rename(
+        &mut self,
+        old_parent_id: u64,
+        old_name: &str,
+        new_parent_id: u64,
+        new_name: &str,
+    ) -> color_eyre::Result<()> {
         let old_parent_path = self
             .get_path(old_parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("old parent inode {old_parent_id} not found"))?
@@ -274,7 +286,8 @@ impl OverlayFs {
                 self.db.write_by_path(&old_path, 0, &content)?;
             } else if item_type == ItemType::Symlink {
                 let target = std::fs::read_link(&real)?;
-                let target_str = target.to_str()
+                let target_str = target
+                    .to_str()
                     .ok_or_else(|| color_eyre::eyre::eyre!("symlink target is not valid UTF-8"))?;
                 self.db.create_symlink_by_path(&old_path, target_str)?;
             }
@@ -291,13 +304,29 @@ impl OverlayFs {
         Ok(())
     }
 
-    pub fn setattr(&mut self, inode: u64, mode: Option<u32>, size: Option<u64>, atime: Option<(i64, i64)>, mtime: Option<(i64, i64)>) -> color_eyre::Result<()> {
+    pub fn setattr(
+        &mut self,
+        inode: u64,
+        mode: Option<u32>,
+        size: Option<u64>,
+        atime: Option<(i64, i64)>,
+        mtime: Option<(i64, i64)>,
+    ) -> color_eyre::Result<()> {
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?
             .to_string();
 
+        // Only copy to overlay if there's an actual modification (mode, size, mtime).
+        // atime-only updates are read operations and shouldn't trigger copy-on-write.
+        let is_modification = mode.is_some() || size.is_some() || mtime.is_some();
+
         if !self.db.exists_by_path(&path) {
+            // Skip atime-only updates for files not in overlay
+            if !is_modification {
+                return Ok(());
+            }
+
             let real = self.real_path(&path);
             if !real.exists() {
                 color_eyre::eyre::bail!("path {path:?} does not exist");
@@ -342,7 +371,13 @@ impl OverlayFs {
                 (attrs.mtime_sec, attrs.mtime_nsec)
             });
 
-            self.db.update_times_by_path(&path, Some(atime_sec), Some(atime_nsec), Some(mtime_sec), Some(mtime_nsec))?;
+            self.db.update_times_by_path(
+                &path,
+                Some(atime_sec),
+                Some(atime_nsec),
+                Some(mtime_sec),
+                Some(mtime_nsec),
+            )?;
         }
 
         Ok(())
@@ -429,7 +464,9 @@ impl OverlayFs {
     pub fn get_all_inodes(&self) -> color_eyre::Result<Vec<(String, ItemType)>> {
         use color_eyre::eyre::WrapErr as _;
 
-        let mut stmt = self.db.conn()
+        let mut stmt = self
+            .db
+            .conn()
             .prepare("SELECT path, type FROM inodes WHERE id != 1")
             .wrap_err("failed to prepare get_all_inodes query")?;
 
@@ -449,7 +486,9 @@ impl OverlayFs {
     pub fn get_all_whiteouts(&self) -> color_eyre::Result<Vec<String>> {
         use color_eyre::eyre::WrapErr as _;
 
-        let mut stmt = self.db.conn()
+        let mut stmt = self
+            .db
+            .conn()
             .prepare("SELECT path FROM whiteouts")
             .wrap_err("failed to prepare get_all_whiteouts query")?;
 
