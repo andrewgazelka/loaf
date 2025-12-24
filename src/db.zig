@@ -167,7 +167,7 @@ pub const Database = struct {
         const Row = struct {
             id: u64,
             parent_id: u64,
-            @"type": u8,
+            type: u8,
             mode: u32,
             uid: u32,
             gid: u32,
@@ -191,7 +191,7 @@ pub const Database = struct {
         return Attrs{
             .file_id = row.id,
             .parent_id = row.parent_id,
-            .item_type = row.@"type",
+            .item_type = row.type,
             .mode = row.mode,
             .uid = row.uid,
             .gid = row.gid,
@@ -227,9 +227,9 @@ pub const Database = struct {
         ;
 
         self.db.exec(query, .{}, .{
-            parent_id,      name,         @intFromEnum(item_type), mode,
-            now_ts.sec,     now_ts.nsec,  now_ts.sec,              now_ts.nsec,
-            now_ts.sec,     now_ts.nsec,  now_ts.sec,              now_ts.nsec,
+            parent_id,  name,        @intFromEnum(item_type), mode,
+            now_ts.sec, now_ts.nsec, now_ts.sec,              now_ts.nsec,
+            now_ts.sec, now_ts.nsec, now_ts.sec,              now_ts.nsec,
         }) catch {
             return error.InsertFailed;
         };
@@ -255,9 +255,10 @@ pub const Database = struct {
         ;
 
         self.db.exec(query, .{}, .{
-            parent_id,  name,        target,
-            now_ts.sec, now_ts.nsec, now_ts.sec, now_ts.nsec,
-            now_ts.sec, now_ts.nsec, now_ts.sec, now_ts.nsec,
+            parent_id,   name,        target,
+            now_ts.sec,  now_ts.nsec, now_ts.sec,
+            now_ts.nsec, now_ts.sec,  now_ts.nsec,
+            now_ts.sec,  now_ts.nsec,
         }) catch {
             return error.InsertFailed;
         };
@@ -372,14 +373,14 @@ pub const Database = struct {
             entries.deinit(allocator);
         }
 
-        var iter = stmt.iterator(struct { id: u64, name: []const u8, @"type": u8 }, .{dir_inode_id}) catch return error.QueryFailed;
+        var iter = stmt.iterator(struct { id: u64, name: []const u8, type: u8 }, .{dir_inode_id}) catch return error.QueryFailed;
 
         while (iter.nextAlloc(allocator, .{}) catch return error.QueryFailed) |row| {
             // nextAlloc already allocates the string, so we own it
             entries.append(allocator, .{
                 .inode_id = row.id,
                 .name = row.name,
-                .item_type = @enumFromInt(row.@"type"),
+                .item_type = @enumFromInt(row.type),
             }) catch {
                 allocator.free(row.name);
                 return error.OutOfMemory;
@@ -443,7 +444,7 @@ pub const Database = struct {
         const Row = struct {
             id: u64,
             parent_id: u64,
-            @"type": u8,
+            type: u8,
             mode: u32,
             uid: u32,
             gid: u32,
@@ -467,7 +468,7 @@ pub const Database = struct {
         return Attrs{
             .file_id = row.id,
             .parent_id = row.parent_id,
-            .item_type = row.@"type",
+            .item_type = row.type,
             .mode = row.mode,
             .uid = row.uid,
             .gid = row.gid,
@@ -498,9 +499,9 @@ pub const Database = struct {
         ,
             .{},
             .{
-                name,           path,         @intFromEnum(item_type), mode,
-                now_ts.sec,     now_ts.nsec,  now_ts.sec,              now_ts.nsec,
-                now_ts.sec,     now_ts.nsec,  now_ts.sec,              now_ts.nsec,
+                name,       path,        @intFromEnum(item_type), mode,
+                now_ts.sec, now_ts.nsec, now_ts.sec,              now_ts.nsec,
+                now_ts.sec, now_ts.nsec, now_ts.sec,              now_ts.nsec,
             },
         ) catch return error.InsertFailed;
 
@@ -527,7 +528,7 @@ pub const Database = struct {
         ,
             .{},
             .{
-                name, path, target, now_ts.sec, now_ts.nsec, now_ts.sec, now_ts.nsec,
+                name,       path,        target,     now_ts.sec,  now_ts.nsec, now_ts.sec, now_ts.nsec,
                 now_ts.sec, now_ts.nsec, now_ts.sec, now_ts.nsec,
             },
         ) catch return error.InsertFailed;
@@ -609,14 +610,14 @@ pub const Database = struct {
             entries.deinit(allocator);
         }
 
-        var iter = stmt.iterator(struct { id: u64, name: []const u8, path: []const u8, @"type": u8 }, .{ prefix, prefix }) catch return error.QueryFailed;
+        var iter = stmt.iterator(struct { id: u64, name: []const u8, path: []const u8, type: u8 }, .{ prefix, prefix }) catch return error.QueryFailed;
 
         while (iter.nextAlloc(allocator, .{}) catch return error.QueryFailed) |row| {
             defer allocator.free(row.path);
             entries.append(allocator, .{
                 .inode_id = row.id,
                 .name = row.name,
-                .item_type = @enumFromInt(row.@"type"),
+                .item_type = @enumFromInt(row.type),
             }) catch {
                 allocator.free(row.name);
                 return error.OutOfMemory;
