@@ -1,13 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use nfsserve::{nfs::*, vfs::*};
+use color_eyre::eyre::WrapErr as _;
+use nfsserve::{nfs::*, tcp::NFSTcp as _, vfs::*};
 
 use crate::db::ItemType;
 use crate::overlay::OverlayFs;
 
 /// NFS wrapper around OverlayFs with thread-safe access
 /// Uses Mutex + spawn_blocking since rusqlite::Connection is not Send
+#[derive(Clone)]
 pub struct NfsOverlay {
     inner: Arc<Mutex<OverlayFs>>,
 }
@@ -653,4 +655,99 @@ mod tests {
 
         Ok(())
     }
+}
+
+/// NFS server configuration
+pub struct NfsServer {
+    pub port: u16,
+    pub overlay: NfsOverlay,
+}
+
+impl NfsServer {
+    /// Start NFS server on a random port (or specified port if provided)
+    /// Returns the actual port bound and the server task handle
+    pub async fn start(overlay: OverlayFs, port: Option<u16>) -> color_eyre::Result<(Self, tokio::task::JoinHandle<()>)> {
+        let nfs_overlay = NfsOverlay::new(overlay);
+        let listener = nfsserve::tcp::NFSTcpListener::bind(
+            &format!("127.0.0.1:{}", port.unwrap_or(0)),
+            nfs_overlay.clone(),
+        )
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!("failed to bind NFS server: {}", e))?;
+
+        let actual_port = listener.get_listen_port();
+        tracing::info!("NFS server listening on 127.0.0.1:{}", actual_port);
+
+        let server = Self {
+            port: actual_port,
+            overlay: nfs_overlay,
+        };
+
+        // Spawn server task
+        let handle = tokio::spawn(async move {
+            if let Err(e) = listener.handle_forever().await {
+                tracing::error!("NFS server error: {}", e);
+            }
+        });
+
+        Ok((server, handle))
+    }
+}
+
+/// Mount NFS filesystem via mount_nfs command
+pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::Result<()> {
+    use tokio::process::Command;
+
+    // Create mount point if it doesn't exist
+    tokio::fs::create_dir_all(mount_point)
+        .await
+        .wrap_err_with(|| format!("failed to create mount point {mount_point:?}"))?;
+
+    let mount_opts = format!(
+        "nolocks,vers=3,tcp,rsize=131072,port={port},mountport={port}"
+    );
+
+    let output = Command::new("mount_nfs")
+        .arg("-o")
+        .arg(&mount_opts)
+        .arg(format!("localhost:/"))
+        .arg(mount_point)
+        .output()
+        .await
+        .wrap_err("failed to execute mount_nfs command")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        color_eyre::eyre::bail!(
+            "mount_nfs failed with status {}: {}",
+            output.status,
+            stderr.trim()
+        );
+    }
+
+    tracing::info!("Mounted NFS at {mount_point:?}");
+    Ok(())
+}
+
+/// Unmount NFS filesystem via umount command
+pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()> {
+    use tokio::process::Command;
+
+    let output = Command::new("umount")
+        .arg(mount_point)
+        .output()
+        .await
+        .wrap_err("failed to execute umount command")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        color_eyre::eyre::bail!(
+            "umount failed with status {}: {}",
+            output.status,
+            stderr.trim()
+        );
+    }
+
+    tracing::info!("Unmounted NFS at {mount_point:?}");
+    Ok(())
 }
