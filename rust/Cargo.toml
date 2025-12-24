@@ -1,0 +1,15 @@
+[package]
+name = "loaf"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nfsserve = "0.10.2"
+rusqlite = { version = "0.38.0", features = ["bundled"] }
+eyre = "0.6"
+color-eyre = "0.6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "fs", "process", "signal"] }
+async-trait = "0.1"
