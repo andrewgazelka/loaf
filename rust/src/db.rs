@@ -413,7 +413,7 @@ impl Database {
                 .execute(
                     "UPDATE inodes SET path = ? || SUBSTR(path, ?)
                      WHERE path LIKE ? || '%'",
-                    rusqlite::params![new_prefix, old_prefix.len() + 1, old_prefix],
+                    rusqlite::params![new_prefix, (old_prefix.len() + 1) as i64, old_prefix],
                 )
                 .wrap_err("failed to update descendant paths")?;
         }
