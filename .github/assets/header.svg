@@ -2,60 +2,22 @@
   <style>
     /* Gentle bread float */
     @keyframes breadFloat {
-      0%, 100% { transform: translateY(0) rotate(-2deg); }
-      50% { transform: translateY(-4px) rotate(2deg); }
-    }
-
-    /* Fork path animation */
-    @keyframes drawPath {
-      0% { stroke-dashoffset: 80; }
-      100% { stroke-dashoffset: 0; }
-    }
-
-    /* Particles flowing along fork */
-    @keyframes particleFlow {
-      0% { offset-distance: 0%; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { offset-distance: 100%; opacity: 0; }
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
     }
 
     /* Gentle pulse for accept/reject */
     @keyframes softPulse {
-      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px currentColor); }
-      50% { transform: scale(1.08); filter: drop-shadow(0 0 12px currentColor); }
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 1; }
     }
 
     .bread {
-      animation: breadFloat 4s ease-in-out infinite;
-      transform-origin: center;
-      transform-box: fill-box;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+      animation: breadFloat 3s ease-in-out infinite;
     }
 
-    .fork-path {
-      stroke-dasharray: 80;
-      animation: drawPath 2.5s ease-in-out infinite;
-    }
-
-    .particle {
-      offset-rotate: 0deg;
-      animation: particleFlow 1.8s ease-in-out infinite;
-    }
-
-    .accept-icon {
-      color: #22c55e;
-      animation: softPulse 2.5s ease-in-out infinite;
-      transform-origin: center;
-      transform-box: fill-box;
-    }
-    .reject-icon {
-      color: #ef4444;
-      animation: softPulse 2.5s ease-in-out infinite;
-      animation-delay: 1.25s;
-      transform-origin: center;
-      transform-box: fill-box;
-    }
+    .accept-icon { animation: softPulse 2s ease-in-out infinite; }
+    .reject-icon { animation: softPulse 2s ease-in-out infinite; animation-delay: 1s; }
 
     .title { fill: #1f2328; }
     .subtitle { fill: #656d76; }
@@ -63,13 +25,11 @@
     @media (prefers-color-scheme: dark) {
       .title { fill: #ffffff; }
       .subtitle { fill: #8b949e; }
-      .bread { filter: drop-shadow(0 4px 12px rgba(234, 179, 80, 0.3)); }
     }
   </style>
 
-  <!-- Minecraft Bread (pixel art) -->
-  <g class="bread" transform="translate(40, 60)">
-    <!-- 16x16 pixel grid scaled 5x = 80x80 -->
+  <!-- Minecraft Bread (pixel art) - centered vertically -->
+  <g class="bread" transform="translate(50, 60)">
     <!-- Row 1: top crust -->
     <rect x="15" y="0" width="5" height="5" fill="#C49A4B"/>
     <rect x="20" y="0" width="5" height="5" fill="#D4AA5B"/>
@@ -171,42 +131,30 @@
     <rect x="50" y="35" width="5" height="5" fill="#A47A2B"/>
   </g>
 
-  <!-- Fork paths -->
-  <g fill="none" stroke-width="2.5" stroke-linecap="round">
-    <!-- Main stem -->
-    <path d="M120 100 L155 100" stroke="#8b949e"/>
+  <!-- Arrow from bread to fork -->
+  <line x1="130" y1="100" x2="165" y2="100" stroke="#8b949e" stroke-width="2"/>
 
-    <!-- Upper fork (accept path) -->
-    <path class="fork-path" d="M155 100 C185 100, 195 65, 225 65" stroke="#22c55e"/>
+  <!-- Fork to accept -->
+  <path d="M165 100 Q185 100 200 75" fill="none" stroke="#22c55e" stroke-width="2"/>
 
-    <!-- Lower fork (reject path) -->
-    <path class="fork-path" d="M155 100 C185 100, 195 135, 225 135" stroke="#ef4444" style="animation-delay: 0.3s;"/>
-  </g>
-
-  <!-- Flowing particles on accept path -->
-  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65');"/>
-  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65'); animation-delay: 0.6s;"/>
-  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65'); animation-delay: 1.2s;"/>
-
-  <!-- Flowing particles on reject path -->
-  <circle class="particle" r="4" fill="#ef4444" style="offset-path: path('M155 100 C185 100, 195 135, 225 135'); animation-delay: 0.3s;"/>
-  <circle class="particle" r="4" fill="#ef4444" style="offset-path: path('M155 100 C185 100, 195 135, 225 135'); animation-delay: 0.9s;"/>
+  <!-- Fork to reject -->
+  <path d="M165 100 Q185 100 200 125" fill="none" stroke="#ef4444" stroke-width="2"/>
 
   <!-- Accept icon -->
-  <g class="accept-icon" transform="translate(230, 48)">
-    <circle cx="17" cy="17" r="18" fill="#22c55e"/>
-    <path d="M9 17 L15 23 L25 11" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="accept-icon" transform="translate(205, 55)">
+    <circle cx="15" cy="15" r="15" fill="#22c55e"/>
+    <path d="M8 15 L13 20 L22 10" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
   <!-- Reject icon -->
-  <g class="reject-icon" transform="translate(230, 118)">
-    <circle cx="17" cy="17" r="18" fill="#ef4444"/>
-    <path d="M11 11 L23 23 M23 11 L11 23" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <g class="reject-icon" transform="translate(205, 110)">
+    <circle cx="15" cy="15" r="15" fill="#ef4444"/>
+    <path d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
   </g>
 
   <!-- Title -->
-  <text class="title" x="300" y="95" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="72" font-weight="700" letter-spacing="-3">loaf</text>
+  <text class="title" x="270" y="100" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="700">loaf</text>
 
   <!-- Subtitle -->
-  <text class="subtitle" x="300" y="132" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
+  <text class="subtitle" x="270" y="135" font-family="system-ui, -apple-system, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
 </svg>
