@@ -1,8 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
   <style>
+    /* Gentle bread float */
+    @keyframes breadFloat {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-4px) rotate(2deg); }
+    }
+
     /* Fork path animation */
     @keyframes drawPath {
-      0% { stroke-dashoffset: 100; }
+      0% { stroke-dashoffset: 80; }
       100% { stroke-dashoffset: 0; }
     }
 
@@ -17,26 +23,25 @@
     /* Gentle pulse for accept/reject */
     @keyframes softPulse {
       0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px currentColor); }
-      50% { transform: scale(1.05); filter: drop-shadow(0 0 10px currentColor); }
+      50% { transform: scale(1.08); filter: drop-shadow(0 0 12px currentColor); }
     }
 
-    /* File block hover effect */
-    @keyframes blockGlow {
-      0%, 100% { opacity: 0.85; }
-      50% { opacity: 1; filter: drop-shadow(0 2px 8px rgba(234, 179, 80, 0.4)); }
+    .bread {
+      animation: breadFloat 4s ease-in-out infinite;
+      transform-origin: center;
+      transform-box: fill-box;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
     }
 
     .fork-path {
-      stroke-dasharray: 100;
-      animation: drawPath 3s ease-in-out infinite;
+      stroke-dasharray: 80;
+      animation: drawPath 2.5s ease-in-out infinite;
     }
 
     .particle {
       offset-rotate: 0deg;
-      animation: particleFlow 2s ease-in-out infinite;
+      animation: particleFlow 1.8s ease-in-out infinite;
     }
-    .particle:nth-child(2) { animation-delay: 0.4s; }
-    .particle:nth-child(3) { animation-delay: 0.8s; }
 
     .accept-icon {
       color: #22c55e;
@@ -52,65 +57,156 @@
       transform-box: fill-box;
     }
 
-    .file-block {
-      animation: blockGlow 3s ease-in-out infinite;
-    }
-    .file-block:nth-child(2) { animation-delay: 0.5s; }
-    .file-block:nth-child(3) { animation-delay: 1s; }
-
     .title { fill: #1f2328; }
     .subtitle { fill: #656d76; }
 
     @media (prefers-color-scheme: dark) {
       .title { fill: #ffffff; }
       .subtitle { fill: #8b949e; }
-      .file-block { filter: drop-shadow(0 2px 8px rgba(234, 179, 80, 0.3)); }
+      .bread { filter: drop-shadow(0 4px 12px rgba(234, 179, 80, 0.3)); }
     }
   </style>
 
-  <!-- File stack (original) -->
-  <g transform="translate(45, 55)">
-    <rect class="file-block" x="0" y="50" width="55" height="40" rx="6" fill="#64748b"/>
-    <rect class="file-block" x="8" y="25" width="55" height="40" rx="6" fill="#94a3b8"/>
-    <rect class="file-block" x="16" y="0" width="55" height="40" rx="6" fill="#eab350"/>
+  <!-- Minecraft Bread (pixel art) -->
+  <g class="bread" transform="translate(40, 60)">
+    <!-- 16x16 pixel grid scaled 5x = 80x80 -->
+    <!-- Row 1: top crust -->
+    <rect x="15" y="0" width="5" height="5" fill="#C49A4B"/>
+    <rect x="20" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="25" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="30" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="35" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="40" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="45" y="0" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="50" y="0" width="5" height="5" fill="#C49A4B"/>
+
+    <!-- Row 2 -->
+    <rect x="10" y="5" width="5" height="5" fill="#C49A4B"/>
+    <rect x="15" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="20" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="25" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="30" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="35" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="40" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="45" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="50" y="5" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="55" y="5" width="5" height="5" fill="#C49A4B"/>
+
+    <!-- Row 3 -->
+    <rect x="5" y="10" width="5" height="5" fill="#C49A4B"/>
+    <rect x="10" y="10" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="15" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="20" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="25" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="30" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="35" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="40" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="45" y="10" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="50" y="10" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="55" y="10" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="60" y="10" width="5" height="5" fill="#C49A4B"/>
+
+    <!-- Row 4: main body -->
+    <rect x="5" y="15" width="5" height="5" fill="#C49A4B"/>
+    <rect x="10" y="15" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="15" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="20" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="25" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="30" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="35" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="40" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="45" y="15" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="50" y="15" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="55" y="15" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="60" y="15" width="5" height="5" fill="#C49A4B"/>
+
+    <!-- Row 5 -->
+    <rect x="5" y="20" width="5" height="5" fill="#C49A4B"/>
+    <rect x="10" y="20" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="15" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="20" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="25" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="30" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="35" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="40" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="45" y="20" width="5" height="5" fill="#FFDEA0"/>
+    <rect x="50" y="20" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="55" y="20" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="60" y="20" width="5" height="5" fill="#C49A4B"/>
+
+    <!-- Row 6 -->
+    <rect x="5" y="25" width="5" height="5" fill="#B48A3B"/>
+    <rect x="10" y="25" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="15" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="20" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="25" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="30" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="35" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="40" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="45" y="25" width="5" height="5" fill="#F4CA7B"/>
+    <rect x="50" y="25" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="55" y="25" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="60" y="25" width="5" height="5" fill="#B48A3B"/>
+
+    <!-- Row 7 -->
+    <rect x="10" y="30" width="5" height="5" fill="#B48A3B"/>
+    <rect x="15" y="30" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="20" y="30" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="25" y="30" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="30" y="30" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="35" y="30" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="40" y="30" width="5" height="5" fill="#E4BA6B"/>
+    <rect x="45" y="30" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="50" y="30" width="5" height="5" fill="#D4AA5B"/>
+    <rect x="55" y="30" width="5" height="5" fill="#B48A3B"/>
+
+    <!-- Row 8: bottom -->
+    <rect x="15" y="35" width="5" height="5" fill="#A47A2B"/>
+    <rect x="20" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="25" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="30" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="35" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="40" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="45" y="35" width="5" height="5" fill="#B48A3B"/>
+    <rect x="50" y="35" width="5" height="5" fill="#A47A2B"/>
   </g>
 
   <!-- Fork paths -->
   <g fill="none" stroke-width="2.5" stroke-linecap="round">
     <!-- Main stem -->
-    <path d="M120 100 L150 100" stroke="#8b949e"/>
+    <path d="M120 100 L155 100" stroke="#8b949e"/>
 
     <!-- Upper fork (accept path) -->
-    <path id="acceptPath" class="fork-path" d="M150 100 C180 100, 190 70, 220 70" stroke="#22c55e"/>
+    <path class="fork-path" d="M155 100 C185 100, 195 65, 225 65" stroke="#22c55e"/>
 
     <!-- Lower fork (reject path) -->
-    <path id="rejectPath" class="fork-path" d="M150 100 C180 100, 190 130, 220 130" stroke="#ef4444" style="animation-delay: 0.3s;"/>
+    <path class="fork-path" d="M155 100 C185 100, 195 135, 225 135" stroke="#ef4444" style="animation-delay: 0.3s;"/>
   </g>
 
   <!-- Flowing particles on accept path -->
-  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
-  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
-  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
+  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65');"/>
+  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65'); animation-delay: 0.6s;"/>
+  <circle class="particle" r="4" fill="#22c55e" style="offset-path: path('M155 100 C185 100, 195 65, 225 65'); animation-delay: 1.2s;"/>
 
   <!-- Flowing particles on reject path -->
-  <circle class="particle" r="3" fill="#ef4444" style="offset-path: path('M150 100 C180 100, 190 130, 220 130'); animation-delay: 0.15s;"/>
-  <circle class="particle" r="3" fill="#ef4444" style="offset-path: path('M150 100 C180 100, 190 130, 220 130'); animation-delay: 0.55s;"/>
+  <circle class="particle" r="4" fill="#ef4444" style="offset-path: path('M155 100 C185 100, 195 135, 225 135'); animation-delay: 0.3s;"/>
+  <circle class="particle" r="4" fill="#ef4444" style="offset-path: path('M155 100 C185 100, 195 135, 225 135'); animation-delay: 0.9s;"/>
 
   <!-- Accept icon -->
-  <g class="accept-icon" transform="translate(225, 55)">
-    <circle cx="15" cy="15" r="16" fill="#22c55e"/>
-    <path d="M8 15 L13 20 L22 10" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="accept-icon" transform="translate(230, 48)">
+    <circle cx="17" cy="17" r="18" fill="#22c55e"/>
+    <path d="M9 17 L15 23 L25 11" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
   <!-- Reject icon -->
-  <g class="reject-icon" transform="translate(225, 115)">
-    <circle cx="15" cy="15" r="16" fill="#ef4444"/>
-    <path d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <g class="reject-icon" transform="translate(230, 118)">
+    <circle cx="17" cy="17" r="18" fill="#ef4444"/>
+    <path d="M11 11 L23 23 M23 11 L11 23" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
   </g>
 
   <!-- Title -->
-  <text class="title" x="290" y="95" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="68" font-weight="700" letter-spacing="-2">loaf</text>
+  <text class="title" x="300" y="95" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="72" font-weight="700" letter-spacing="-3">loaf</text>
 
   <!-- Subtitle -->
-  <text class="subtitle" x="290" y="130" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="17">Fork your filesystem. Accept or reject.</text>
+  <text class="subtitle" x="300" y="132" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
 </svg>
