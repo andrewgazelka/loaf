@@ -47,21 +47,20 @@ loaf reject                 # Discard changes
 
 ## Use Cases
 
-- **AI agents**: Let Claude/GPT modify files freely, review before applying
-- **Dangerous experiments**: `rm -rf ~` is harmless - blocked by sandbox
-- **Package testing**: See what `npm install` actually touches
+- **AI agents**: Let Claude/GPT modify your project freely, review before applying
+- **Safe experiments**: Project changes are captured, can be accepted or rejected
+- **Package testing**: See what `npm install` actually touches in your project
 
 ## Sandbox
 
-The process sandbox uses macOS Seatbelt (same tech as App Sandbox) to restrict writes:
+The process sandbox uses macOS Seatbelt to prevent bypassing the overlay:
 
 | Location | Read | Write |
 |----------|------|-------|
-| Overlay mount | ✓ | ✓ |
-| `/tmp` | ✓ | ✓ |
-| Everything else | ✓ | ✗ |
+| Project directory | ✓ | ✗ (must use overlay) |
+| Everything else | ✓ | ✓ |
 
-Network access is allowed (for `git`, `curl`, etc).
+The overlay captures writes via NFS. The sandbox blocks direct writes to the project directory, forcing all modifications through the overlay.
 
 **Debug mode:** Set `LOAF_SANDBOX_DEBUG=1` to log denied operations:
 ```bash

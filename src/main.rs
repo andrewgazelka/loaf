@@ -296,7 +296,7 @@ async fn run_command(
 
     println!("✓ Overlay mounted at {mount_dir:?}");
     if !no_sandbox {
-        println!("  Sandbox: enabled (writes restricted to overlay)");
+        println!("  Sandbox: enabled (project dir protected)");
     }
     println!("  Running: {command} {}", args.join(" "));
     println!();
@@ -310,8 +310,8 @@ async fn run_command(
         cmd.args(&args).current_dir(&mount_dir);
 
         if !no_sandbox {
-            // Generate sandbox profile
-            let mut profile = sandbox::generate_profile(&mount_dir);
+            // Generate sandbox profile - protect base_path from direct writes
+            let mut profile = sandbox::generate_profile(&base_path);
 
             // Add debug logging if requested
             if std::env::var("LOAF_SANDBOX_DEBUG").is_ok() {

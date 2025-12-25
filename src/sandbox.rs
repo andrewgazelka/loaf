@@ -50,61 +50,23 @@ pub unsafe fn apply_sandbox(profile: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Generate SBPL profile that restricts writes to mount point only.
+/// Generate SBPL profile that protects the base path (project directory).
 ///
 /// Policy:
-/// - Writes: Only allowed to `mount_point` and `/private/tmp`
-/// - Reads: Allowed everywhere (for shell, libraries, etc.)
-/// - Network: Allowed (for git, curl, npm, etc.)
-/// - Process: Fork/exec allowed (process-exec handles execution)
-pub fn generate_profile(mount_point: &Path) -> String {
-    let mount = mount_point.display();
+/// - DENY writes to base_path (the real project dir) - must go through NFS overlay
+/// - ALLOW everything else (Claude needs ~/.claude, /tmp, network, etc.)
+///
+/// This is a safety net to prevent bypassing the overlay via absolute paths.
+pub fn generate_profile(base_path: &Path) -> String {
+    let base = base_path.display();
 
     format!(
         r#"(version 1)
-(deny default)
+(allow default)
 
-;; Process basics - needed for shells and subprocesses
-(allow process-exec process-fork)
-(allow signal (target self))
-
-;; Filesystem - WRITE only to mount point and temp
-(allow file-read* file-write* file-ioctl
-  (subpath "{mount}"))
-
-(allow file-write*
-  (subpath "/private/tmp"))
-
-;; Filesystem - READ everywhere (for shells, libraries, configs)
-(allow file-read*
-  (subpath "/"))
-
-;; TTY for interactive shells
-(allow file-read* file-write* file-ioctl
-  (regex #"^/dev/ttys[0-9]+$")
-  (regex #"^/dev/pty[a-z][0-9]+$")
-  (literal "/dev/tty")
-  (literal "/dev/null")
-  (literal "/dev/zero")
-  (literal "/dev/random")
-  (literal "/dev/urandom"))
-
-;; Pseudo-terminals for pty allocation
-(allow file-read* file-write* file-ioctl
-  (literal "/dev/ptmx"))
-
-;; Allow network (for git, curl, npm, etc.)
-(allow network*)
-
-;; Mach ports needed for various system services
-(allow mach-lookup)
-
-;; System V IPC (some programs need this)
-(allow ipc-posix*)
-(allow ipc-sysv*)
-
-;; Sysctl reads (uname, etc.)
-(allow sysctl-read)
+;; DENY writes to the project directory
+;; These must go through the NFS overlay mount point
+(deny file-write* (subpath "{base}"))
 "#
     )
 }
@@ -115,10 +77,10 @@ mod tests {
 
     #[test]
     fn test_generate_profile() {
-        let profile = generate_profile(std::path::Path::new("/tmp/test-mount"));
+        let profile = generate_profile(std::path::Path::new("/Users/test/project"));
         assert!(profile.contains("(version 1)"));
-        assert!(profile.contains("/tmp/test-mount"));
-        assert!(profile.contains("(deny default)"));
-        assert!(profile.contains("(allow network*)"));
+        assert!(profile.contains("(allow default)"));
+        assert!(profile.contains("(deny file-write*"));
+        assert!(profile.contains("/Users/test/project"));
     }
 }
