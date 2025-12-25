@@ -1,9 +1,9 @@
 {
   "summary": {
     "total_features": 13,
-    "passing": 4,
+    "passing": 5,
     "blocked": 0,
-    "total_iterations": 1,
+    "total_iterations": 2,
     "started_at": "2025-12-25T16:30:00Z"
   },
   "blocked_features": [],
@@ -31,6 +31,12 @@
       "feature_id": 4,
       "action": "completed",
       "message": "Added comprehensive symlink operation tests"
+    },
+    {
+      "timestamp": "2025-12-25T18:15:00Z",
+      "feature_id": 5,
+      "action": "completed",
+      "message": "Added overlay semantics tests (copy-on-write, whiteouts, passthrough)"
     }
   ]
 }

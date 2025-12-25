@@ -112,7 +112,7 @@
     ],
     "depends_on": [1, 2],
     "estimated_files": ["tests/overlay_semantics.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
