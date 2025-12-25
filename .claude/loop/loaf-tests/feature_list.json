@@ -15,7 +15,7 @@
     ],
     "depends_on": [],
     "estimated_files": ["tests/helpers.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -39,7 +39,7 @@
     ],
     "depends_on": [1],
     "estimated_files": ["tests/file_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -63,7 +63,7 @@
     ],
     "depends_on": [1],
     "estimated_files": ["tests/dir_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -87,7 +87,7 @@
     ],
     "depends_on": [1],
     "estimated_files": ["tests/symlink_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
