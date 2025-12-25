@@ -397,6 +397,9 @@ impl Database {
     ) -> color_eyre::Result<Vec<DirEntry>> {
         use color_eyre::eyre::WrapErr as _;
 
+        // Handle root path specially to avoid double slash
+        let prefix = if parent_path == "/" { "" } else { parent_path };
+
         let mut stmt = self
             .conn
             .prepare(
@@ -406,7 +409,7 @@ impl Database {
             .wrap_err("failed to prepare list_children query")?;
 
         let entries = stmt
-            .query_map([parent_path, parent_path], |row| {
+            .query_map([prefix, prefix], |row| {
                 Ok(DirEntry {
                     inode_id: row.get::<_, i64>(0)? as u64,
                     name: row.get(1)?,

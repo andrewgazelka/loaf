@@ -4,13 +4,15 @@
 
 **Fork your filesystem. Let AI run wild. Accept or reject changes.**
 
-loaf is an overlay filesystem for macOS using FSKit. Like [poof](https://github.com/jarred-sumner/poof) for Linux, but native to macOS.
+loaf is an overlay filesystem for macOS. Like [poof](https://github.com/jarred-sumner/poof) for Linux, but for macOS.
 
 ## How It Works
 
 ```
 ┌─────────────────────────────────────┐
 │        Your commands / AI           │
+├─────────────────────────────────────┤
+│     NFS Server (userspace)          │  ← Intercepts all operations
 ├─────────────────────────────────────┤
 │     Overlay (SQLite upper layer)    │  ← All writes captured here
 ├─────────────────────────────────────┤
@@ -24,7 +26,7 @@ Mount loaf over any directory. All changes go to a `.loaf` SQLite file. The real
 
 ```bash
 # Build
-zig build -Doptimize=ReleaseFast
+cargo build --release
 
 # Let AI go wild in an isolated sandbox
 cd ~/Projects/myapp
@@ -32,13 +34,8 @@ loaf run claude --dangerously-skip-permissions
 ```
 
 ```
-● Creating sandbox...
-● Running command in sandbox...
-
-  ╭────────────────────────────────────────╮
-  │  Claude Code v2.0.72                   │
-  │  /private/tmp/loaf-sandbox-1766096819  │
-  ╰────────────────────────────────────────╯
+✓ Overlay mounted at /private/tmp/loaf-xxx/mount
+  Running: claude --dangerously-skip-permissions
 
 > make a file test.txt
 
@@ -47,31 +44,31 @@ loaf run claude --dangerously-skip-permissions
 
 > /exit
 
-loaf: 1 changed file(s)
-  + test.txt
+✓ Command completed successfully (exit code: 0)
 
-Apply these changes to ~/Projects/myapp? [y/N/d(iff)]:
+Changes detected:
+  A file     /test.txt
+
+Apply changes to real filesystem? [y/N]:
 ```
 
 - **y** — Apply all changes to real filesystem
 - **n** — Discard everything, directory unchanged
 
-Uses FSKit to provide true filesystem isolation. All writes go to SQLite, real filesystem is never touched.
-
-### Overlay Mode (Alternative)
+## CLI Commands
 
 ```bash
-# Create persistent overlay on a project
-./zig-out/bin/loaf init ~/Projects/myapp
+# Sandbox execution (recommended)
+loaf run <cmd> [args...]    # Run command in overlay sandbox
 
-# Review what changed
-./zig-out/bin/loaf diff
+# Manual mount/unmount
+loaf mount <path>           # Mount overlay on directory
+loaf unmount <path>         # Unmount overlay
 
-# Happy? Apply to real filesystem
-./zig-out/bin/loaf accept
-
-# Changed your mind? Discard everything
-./zig-out/bin/loaf reject
+# Review changes
+loaf diff [overlay.loaf]    # Show pending changes
+loaf accept [overlay.loaf]  # Apply changes to real filesystem
+loaf reject [overlay.loaf]  # Discard all changes
 ```
 
 ## Use Cases
@@ -81,74 +78,19 @@ Uses FSKit to provide true filesystem isolation. All writes go to SQLite, real f
 - **Package managers**: See what `npm install` actually touches before committing
 - **Config changes**: Test system modifications with a safety net
 
-## CLI Commands
-
-```bash
-# Sandbox execution (FSKit overlay)
-loaf run <cmd> [args...]           # Run command in FSKit overlay sandbox
-
-# Overlay mode
-loaf init <path> [overlay.loaf]    # Create overlay on directory
-loaf diff [overlay.loaf]           # Show pending changes
-loaf accept [overlay.loaf]         # Apply changes to real filesystem
-loaf reject [overlay.loaf]         # Discard all changes
-loaf status                        # Show active overlay
-
-# FSKit mount (requires enabled extension)
-loaf mount <overlay.loaf> <mount>  # Mount .loaf file via FSKit
-loaf unmount <mount>               # Unmount FSKit filesystem
-
-# Inspection (debug)
-loaf ls [db.loaf] [path]           # List directory contents
-loaf cat [db.loaf] <path>          # Read file contents
-loaf tree [db.loaf]                # Show full directory tree
-loaf info [db.loaf]                # Show database stats
-```
-
-## Status
-
-✅ **`loaf run` uses FSKit overlay** — true filesystem isolation via FSKit.
-
-- [x] **`loaf run`** — sandbox execution with FSKit overlay
-- [x] SQLite storage layer
-- [x] Overlay database schema (whiteouts, path tracking)
-- [x] `loaf init` — create overlay
-- [x] `loaf diff` — show changes
-- [x] `loaf accept` / `loaf reject` — apply or discard
-- [x] FSKit extension structure
-- [x] FSKit overlay integration (reads passthrough, writes to SQLite)
-- [x] `loaf mount` / `loaf unmount` — mount overlay via FSKit
-
-**Note:** Requires building and enabling the FSKit extension via Xcode.
-
-## Building
-
-```bash
-# Build Zig library + CLI
-zig build -Doptimize=ReleaseFast
-
-# Run tests
-zig build test
-
-# Build Swift extension (requires Xcode)
-cd swift && xcodegen generate && open Loaf.xcodeproj
-```
-
 ## Architecture
 
 ```
 ┌─────────────────────────────┐
-│   POSIX filesystem interface │
+│   POSIX filesystem calls    │
 ├─────────────────────────────┤
-│   FSKit (Apple's framework)  │
+│   macOS mount_nfs           │
 ├─────────────────────────────┤
-│   Swift extension            │
+│   NFS server (nfsserve)     │
 ├─────────────────────────────┤
-│   C FFI bridge (loaf.h)      │
+│   Overlay logic (Rust)      │
 ├─────────────────────────────┤
-│   Zig core library           │
-├─────────────────────────────┤
-│   SQLite database            │  ← .loaf overlay file
+│   SQLite database           │  ← .loaf overlay file
 └─────────────────────────────┘
 ```
 
@@ -158,11 +100,27 @@ The SQLite "upper layer" tracks:
 - **Deletes**: Whiteout markers hiding real files
 - **Renames**: Path remapping
 
+## Building
+
+```bash
+# Debug build
+cargo build
+
+# Release build
+cargo build --release
+
+# Run tests
+cargo test
+```
+
 ## Requirements
 
-- macOS 15+ (Sequoia)
-- Zig 0.15+
-- Xcode 16+ (for FSKit extension)
+- macOS (tested on 15+)
+- Rust 1.85+ (edition 2024)
+
+## Why NFS?
+
+FSKit (Apple's new filesystem framework) has [known bugs on macOS 26](ISSUES.md) that prevent third-party extensions from working. NFS provides a reliable userspace alternative that works today.
 
 ## See Also
 

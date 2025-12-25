@@ -1,21 +1,21 @@
 repos:
   - repo: local
     hooks:
-      - id: zig-fmt
-        name: zig fmt
-        entry: zig fmt
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --
         language: system
-        files: '\.zig$'
+        pass_filenames: false
         args: ['--check']
 
-      - id: zig-build
-        name: zig build
-        entry: zig build
+      - id: cargo-build
+        name: cargo build
+        entry: cargo build
         language: system
         pass_filenames: false
 
-      - id: zig-test
-        name: zig test
-        entry: zig build test
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test
         language: system
         pass_filenames: false
