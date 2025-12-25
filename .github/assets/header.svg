@@ -23,8 +23,8 @@
     }
   </style>
 
-  <!-- Minecraft Bread (pixel art) - scaled up 1.5x -->
-  <g class="bread" transform="translate(80, 50) scale(1.5)">
+  <!-- Minecraft Bread (pixel art) - scaled up 1.5x, vertically centered -->
+  <g class="bread" transform="translate(90, 70) scale(1.5)">
     <!-- Row 1: top crust -->
     <rect x="15" y="0" width="5" height="5" fill="#C49A4B"/>
     <rect x="20" y="0" width="5" height="5" fill="#D4AA5B"/>
@@ -127,7 +127,7 @@
   </g>
 
   <!-- Arrow from bread to fork -->
-  <line x1="195" y1="100" x2="250" y2="100" stroke="#8b949e" stroke-width="2.5"/>
+  <line x1="190" y1="100" x2="250" y2="100" stroke="#8b949e" stroke-width="2.5"/>
 
   <!-- Fork to accept -->
   <path d="M250 100 Q280 100 305 70" fill="none" stroke="#22c55e" stroke-width="2.5"/>
