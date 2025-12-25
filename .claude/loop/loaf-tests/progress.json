@@ -1,9 +1,9 @@
 {
   "summary": {
     "total_features": 13,
-    "passing": 5,
+    "passing": 8,
     "blocked": 0,
-    "total_iterations": 2,
+    "total_iterations": 3,
     "started_at": "2025-12-25T16:30:00Z"
   },
   "blocked_features": [],
@@ -37,6 +37,24 @@
       "feature_id": 5,
       "action": "completed",
       "message": "Added overlay semantics tests (copy-on-write, whiteouts, passthrough)"
+    },
+    {
+      "timestamp": "2025-12-25T20:00:00Z",
+      "feature_id": 6,
+      "action": "completed",
+      "message": "Added git repository operation tests"
+    },
+    {
+      "timestamp": "2025-12-25T20:00:00Z",
+      "feature_id": 7,
+      "action": "completed",
+      "message": "Added rename operation tests"
+    },
+    {
+      "timestamp": "2025-12-25T20:00:00Z",
+      "feature_id": 8,
+      "action": "completed",
+      "message": "Added attribute operation tests (mode, times, size)"
     }
   ]
 }

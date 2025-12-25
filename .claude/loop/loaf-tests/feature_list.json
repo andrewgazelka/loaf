@@ -137,7 +137,7 @@
     ],
     "depends_on": [1, 2, 3],
     "estimated_files": ["tests/git_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -161,7 +161,7 @@
     ],
     "depends_on": [1, 2, 3],
     "estimated_files": ["tests/rename_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
@@ -185,7 +185,7 @@
     ],
     "depends_on": [1, 2],
     "estimated_files": ["tests/attr_ops.rs"],
-    "passes": false,
+    "passes": true,
     "blocked": false,
     "blocked_reason": null,
     "block_count": 0
