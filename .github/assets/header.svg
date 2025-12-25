@@ -1,21 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
   <style>
-    /* Gentle bread float */
     @keyframes breadFloat {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-5px); }
     }
 
-    /* Gentle pulse for accept/reject */
     @keyframes softPulse {
       0%, 100% { opacity: 0.9; }
       50% { opacity: 1; }
     }
 
-    .bread {
-      animation: breadFloat 3s ease-in-out infinite;
-    }
-
+    .bread { animation: breadFloat 3s ease-in-out infinite; }
     .accept-icon { animation: softPulse 2s ease-in-out infinite; }
     .reject-icon { animation: softPulse 2s ease-in-out infinite; animation-delay: 1s; }
 
@@ -28,8 +23,8 @@
     }
   </style>
 
-  <!-- Minecraft Bread (pixel art) - centered vertically -->
-  <g class="bread" transform="translate(50, 60)">
+  <!-- Minecraft Bread (pixel art) - scaled up 1.5x -->
+  <g class="bread" transform="translate(80, 50) scale(1.5)">
     <!-- Row 1: top crust -->
     <rect x="15" y="0" width="5" height="5" fill="#C49A4B"/>
     <rect x="20" y="0" width="5" height="5" fill="#D4AA5B"/>
@@ -132,29 +127,29 @@
   </g>
 
   <!-- Arrow from bread to fork -->
-  <line x1="130" y1="100" x2="165" y2="100" stroke="#8b949e" stroke-width="2"/>
+  <line x1="195" y1="100" x2="250" y2="100" stroke="#8b949e" stroke-width="2.5"/>
 
   <!-- Fork to accept -->
-  <path d="M165 100 Q185 100 200 75" fill="none" stroke="#22c55e" stroke-width="2"/>
+  <path d="M250 100 Q280 100 305 70" fill="none" stroke="#22c55e" stroke-width="2.5"/>
 
   <!-- Fork to reject -->
-  <path d="M165 100 Q185 100 200 125" fill="none" stroke="#ef4444" stroke-width="2"/>
+  <path d="M250 100 Q280 100 305 130" fill="none" stroke="#ef4444" stroke-width="2.5"/>
 
   <!-- Accept icon -->
-  <g class="accept-icon" transform="translate(205, 55)">
-    <circle cx="15" cy="15" r="15" fill="#22c55e"/>
-    <path d="M8 15 L13 20 L22 10" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="accept-icon" transform="translate(305, 45)">
+    <circle cx="18" cy="18" r="18" fill="#22c55e"/>
+    <path d="M10 18 L16 24 L26 12" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
   <!-- Reject icon -->
-  <g class="reject-icon" transform="translate(205, 110)">
-    <circle cx="15" cy="15" r="15" fill="#ef4444"/>
-    <path d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <g class="reject-icon" transform="translate(305, 115)">
+    <circle cx="18" cy="18" r="18" fill="#ef4444"/>
+    <path d="M11 11 L25 25 M25 11 L11 25" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
   </g>
 
   <!-- Title -->
-  <text class="title" x="270" y="100" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="700">loaf</text>
+  <text class="title" x="370" y="105" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="700">loaf</text>
 
   <!-- Subtitle -->
-  <text class="subtitle" x="270" y="135" font-family="system-ui, -apple-system, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
+  <text class="subtitle" x="370" y="140" font-family="system-ui, -apple-system, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
 </svg>
