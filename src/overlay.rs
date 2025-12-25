@@ -42,6 +42,11 @@ impl OverlayFs {
         self.inode_to_path.get(&inode).map(|s| s.as_str())
     }
 
+    /// Public version for debugging/logging
+    pub fn get_path_for_inode(&self, inode: u64) -> Option<String> {
+        self.inode_to_path.get(&inode).cloned()
+    }
+
     fn get_or_create_inode(&mut self, path: &str) -> u64 {
         if let Some(&inode) = self.path_to_inode.get(path) {
             return inode;
@@ -317,13 +322,16 @@ impl OverlayFs {
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?
             .to_string();
 
-        // Only copy to overlay if there's an actual modification (mode, size, mtime).
-        // atime-only updates are read operations and shouldn't trigger copy-on-write.
-        let is_modification = mode.is_some() || size.is_some() || mtime.is_some();
+        // Only copy to overlay if there's an actual content/permission modification.
+        // Time updates (atime, mtime) on files not in overlay should be ignored -
+        // they don't represent actual changes to file content or permissions.
+        // This prevents read operations (which may update atime/mtime) from
+        // triggering copy-on-write.
+        let needs_copy = mode.is_some() || size.is_some();
 
         if !self.db.exists_by_path(&path) {
-            // Skip atime-only updates for files not in overlay
-            if !is_modification {
+            // Skip time-only updates for files not in overlay
+            if !needs_copy {
                 return Ok(());
             }
 

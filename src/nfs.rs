@@ -152,6 +152,32 @@ impl NFSFileSystem for NfsOverlay {
                 set_size3::Void => None,
             };
 
+            let atime_type = match &setattr.atime {
+                set_atime::SET_TO_CLIENT_TIME(_) => "CLIENT_TIME",
+                set_atime::SET_TO_SERVER_TIME => "SERVER_TIME",
+                set_atime::DONT_CHANGE => "DONT_CHANGE",
+            };
+
+            let mtime_type = match &setattr.mtime {
+                set_mtime::SET_TO_CLIENT_TIME(_) => "CLIENT_TIME",
+                set_mtime::SET_TO_SERVER_TIME => "SERVER_TIME",
+                set_mtime::DONT_CHANGE => "DONT_CHANGE",
+            };
+
+            // Get path for logging
+            let path = overlay
+                .get_path_for_inode(id)
+                .unwrap_or_else(|| "<unknown>".to_string());
+            tracing::debug!(
+                "setattr inode={} path={} mode={:?} size={:?} atime={} mtime={}",
+                id,
+                path,
+                mode,
+                size,
+                atime_type,
+                mtime_type
+            );
+
             let atime = match setattr.atime {
                 set_atime::SET_TO_CLIENT_TIME(t) => Some((t.seconds as i64, t.nseconds as i64)),
                 set_atime::SET_TO_SERVER_TIME => {

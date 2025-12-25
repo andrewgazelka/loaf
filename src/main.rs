@@ -514,6 +514,10 @@ fn get_overlay_changes(overlay: &overlay::OverlayFs) -> color_eyre::Result<Vec<S
         .wrap_err("failed to get all inodes")?;
 
     for (path, item_type) in inodes {
+        // Skip .git directory - git internals are noisy and not user-relevant
+        if path.starts_with("/.git/") || path == "/.git" {
+            continue;
+        }
         let real_path = overlay
             .base_path()
             .join(path.strip_prefix('/').unwrap_or(&path));
@@ -536,6 +540,10 @@ fn get_overlay_changes(overlay: &overlay::OverlayFs) -> color_eyre::Result<Vec<S
         .wrap_err("failed to get all whiteouts")?;
 
     for path in whiteouts {
+        // Skip .git directory
+        if path.starts_with("/.git/") || path == "/.git" {
+            continue;
+        }
         changes.push(format!("  \x1b[31mD\x1b[0m          {path}"));
     }
 
