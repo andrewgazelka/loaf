@@ -1,6 +1,7 @@
 mod db;
 mod nfs;
 mod overlay;
+mod sandbox;
 
 use color_eyre::eyre::WrapErr as _;
 use std::path::PathBuf;
@@ -44,6 +45,9 @@ enum Commands {
         /// Arguments to pass to the command
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
+        /// Disable sandbox (for debugging)
+        #[arg(long)]
+        no_sandbox: bool,
     },
     /// Show pending changes in the overlay
     Diff {
@@ -107,7 +111,11 @@ async fn main() -> color_eyre::Result<()> {
     match cli.command {
         Commands::Mount { path, port } => mount_command(path, port).await?,
         Commands::Unmount { path } => unmount_command(path).await?,
-        Commands::Run { command, args } => run_command(command, args).await?,
+        Commands::Run {
+            command,
+            args,
+            no_sandbox,
+        } => run_command(command, args, no_sandbox).await?,
         Commands::Diff { overlay } => diff_command(overlay).await?,
         Commands::Accept { overlay } => accept_command(overlay).await?,
         Commands::Reject { overlay } => reject_command(overlay).await?,
@@ -239,7 +247,11 @@ async fn unmount_command(path: PathBuf) -> color_eyre::Result<()> {
     Ok(())
 }
 
-async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<()> {
+async fn run_command(
+    command: String,
+    args: Vec<String>,
+    no_sandbox: bool,
+) -> color_eyre::Result<()> {
     // Validate command exists
     if which::which(&command).is_err() {
         color_eyre::eyre::bail!(
@@ -283,16 +295,43 @@ async fn run_command(command: String, args: Vec<String>) -> color_eyre::Result<(
         .wrap_err_with(|| format!("failed to mount NFS at {mount_dir:?}"))?;
 
     println!("✓ Overlay mounted at {mount_dir:?}");
+    if !no_sandbox {
+        println!("  Sandbox: enabled (writes restricted to overlay)");
+    }
     println!("  Running: {command} {}", args.join(" "));
     println!();
 
     // Run the command with cwd set to mount point
-    let status = tokio::process::Command::new(&command)
-        .args(&args)
-        .current_dir(&mount_dir)
-        .status()
-        .await
-        .wrap_err_with(|| format!("failed to execute command: {command}"))?;
+    // Use std::process::Command for pre_exec sandbox support
+    let status = {
+        use std::os::unix::process::CommandExt as _;
+
+        let mut cmd = std::process::Command::new(&command);
+        cmd.args(&args).current_dir(&mount_dir);
+
+        if !no_sandbox {
+            // Generate sandbox profile
+            let mut profile = sandbox::generate_profile(&mount_dir);
+
+            // Add debug logging if requested
+            if std::env::var("LOAF_SANDBOX_DEBUG").is_ok() {
+                profile = format!("(debug deny)\n{profile}");
+                eprintln!("Sandbox debug mode enabled. View denied operations with:");
+                eprintln!("  log stream --predicate 'process == \"sandboxd\"'");
+            }
+
+            // SAFETY: pre_exec runs after fork, before exec in single-threaded child
+            unsafe {
+                cmd.pre_exec(move || {
+                    sandbox::apply_sandbox(&profile)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                });
+            }
+        }
+
+        cmd.status()
+            .wrap_err_with(|| format!("failed to execute command: {command}"))?
+    };
 
     println!();
     if status.success() {
