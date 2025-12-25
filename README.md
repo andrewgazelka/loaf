@@ -2,9 +2,11 @@
   <img src=".github/assets/header.svg" alt="loaf" width="100%"/>
 </p>
 
-**Fork your filesystem. Let AI run wild. Accept or reject changes.**
+<p align="center">
+  <code>cargo install loaf && loaf run claude</code>
+</p>
 
-loaf is an overlay filesystem for macOS. Like [poof](https://github.com/jarred-sumner/poof) for Linux, but for macOS.
+Overlay filesystem for macOS. Let AI modify your codebase freely, then accept or reject changes.
 
 ## How It Works
 
@@ -12,117 +14,49 @@ loaf is an overlay filesystem for macOS. Like [poof](https://github.com/jarred-s
 ┌─────────────────────────────────────┐
 │        Your commands / AI           │
 ├─────────────────────────────────────┤
-│     NFS Server (userspace)          │  ← Intercepts all operations
+│     NFS Server (userspace)          │  ← Intercepts all ops
 ├─────────────────────────────────────┤
-│     Overlay (SQLite upper layer)    │  ← All writes captured here
+│     SQLite overlay (.loaf)          │  ← All writes go here
 ├─────────────────────────────────────┤
-│     Real filesystem (read-only)     │  ← Reads pass through
+│     Real filesystem (untouched)     │  ← Reads pass through
 └─────────────────────────────────────┘
 ```
 
-Mount loaf over any directory. All changes go to a `.loaf` SQLite file. The real filesystem is untouched.
-
-## Quick Start
+## Usage
 
 ```bash
-# Build
-cargo build --release
-
-# Let AI go wild in an isolated sandbox
 cd ~/Projects/myapp
 loaf run claude --dangerously-skip-permissions
 ```
 
-```
-✓ Overlay mounted at /private/tmp/loaf-xxx/mount
-  Running: claude --dangerously-skip-permissions
-
-> make a file test.txt
-
-● Write(test.txt)
-  Wrote 1 lines to test.txt
-
-> /exit
-
-✓ Command completed successfully (exit code: 0)
-
-Changes detected:
-  A file     /test.txt
-
-Apply changes to real filesystem? [y/N]:
-```
-
-- **y** — Apply all changes to real filesystem
-- **n** — Discard everything, directory unchanged
-
-## CLI Commands
+When done, review the diff and choose: **y** to apply, **n** to discard.
 
 ```bash
-# Sandbox execution (recommended)
-loaf run <cmd> [args...]    # Run command in overlay sandbox
-
-# Manual mount/unmount
-loaf mount <path>           # Mount overlay on directory
-loaf unmount <path>         # Unmount overlay
-
-# Review changes
-loaf diff [overlay.loaf]    # Show pending changes
-loaf accept [overlay.loaf]  # Apply changes to real filesystem
-loaf reject [overlay.loaf]  # Discard all changes
+loaf run <cmd> [args...]    # Run in sandbox
+loaf diff                   # Show pending changes
+loaf accept                 # Apply changes
+loaf reject                 # Discard changes
 ```
 
 ## Use Cases
 
-- **AI code agents**: Let Claude/GPT modify your codebase freely, review changes before applying
+- **AI agents**: Let Claude/GPT go wild, review before applying
 - **Dangerous experiments**: `rm -rf ~` without consequences
-- **Package managers**: See what `npm install` actually touches before committing
-- **Config changes**: Test system modifications with a safety net
+- **Package testing**: See what `npm install` actually touches
 
-## Architecture
+## Status
 
-```
-┌─────────────────────────────┐
-│   POSIX filesystem calls    │
-├─────────────────────────────┤
-│   macOS mount_nfs           │
-├─────────────────────────────┤
-│   NFS server (nfsserve)     │
-├─────────────────────────────┤
-│   Overlay logic (Rust)      │
-├─────────────────────────────┤
-│   SQLite database           │  ← .loaf overlay file
-└─────────────────────────────┘
-```
+Works via NFS userspace server. FSKit approach [blocked by Apple bugs](ISSUES.md).
 
-The SQLite "upper layer" tracks:
-- **Creates**: New files/directories stored as blobs
-- **Writes**: Modified file contents
-- **Deletes**: Whiteout markers hiding real files
-- **Renames**: Path remapping
+---
 
-## Building
+<details>
+<summary>Building from source</summary>
 
 ```bash
-# Debug build
-cargo build
-
-# Release build
 cargo build --release
-
-# Run tests
-cargo test
 ```
 
-## Requirements
+Requires macOS 15+ and Rust 1.85+.
 
-- macOS (tested on 15+)
-- Rust 1.85+ (edition 2024)
-
-## Why NFS?
-
-FSKit (Apple's new filesystem framework) has [known bugs on macOS 26](ISSUES.md) that prevent third-party extensions from working. NFS provides a reliable userspace alternative that works today.
-
-## See Also
-
-- [poof](https://github.com/jarred-sumner/poof) — Ephemeral filesystem isolation for Linux (inspiration)
-- [agentfs](https://github.com/tursodatabase/agentfs) — SQLite-backed FS for agents by Turso
+</details>

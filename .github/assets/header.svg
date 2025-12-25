@@ -1,21 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
   <style>
-    /* Layers shift to show overlay */
-    @keyframes layerShift {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
+    /* Fork path animation */
+    @keyframes drawPath {
+      0% { stroke-dashoffset: 100; }
+      100% { stroke-dashoffset: 0; }
     }
 
-    /* Check/X marks pulse */
-    @keyframes fadePulse {
-      0%, 100% { opacity: 0.7; }
-      50% { opacity: 1; }
+    /* Particles flowing along fork */
+    @keyframes particleFlow {
+      0% { offset-distance: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
     }
 
-    .upper { animation: layerShift 3s ease-in-out infinite; }
-    .lower { animation: layerShift 3s ease-in-out infinite reverse; animation-delay: 0.2s; }
-    .check { animation: fadePulse 2s ease-in-out infinite; }
-    .reject { animation: fadePulse 2s ease-in-out infinite; animation-delay: 1s; }
+    /* Gentle pulse for accept/reject */
+    @keyframes softPulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px currentColor); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 10px currentColor); }
+    }
+
+    /* File block hover effect */
+    @keyframes blockGlow {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; filter: drop-shadow(0 2px 8px rgba(234, 179, 80, 0.4)); }
+    }
+
+    .fork-path {
+      stroke-dasharray: 100;
+      animation: drawPath 3s ease-in-out infinite;
+    }
+
+    .particle {
+      offset-rotate: 0deg;
+      animation: particleFlow 2s ease-in-out infinite;
+    }
+    .particle:nth-child(2) { animation-delay: 0.4s; }
+    .particle:nth-child(3) { animation-delay: 0.8s; }
+
+    .accept-icon {
+      color: #22c55e;
+      animation: softPulse 2.5s ease-in-out infinite;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+    .reject-icon {
+      color: #ef4444;
+      animation: softPulse 2.5s ease-in-out infinite;
+      animation-delay: 1.25s;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+
+    .file-block {
+      animation: blockGlow 3s ease-in-out infinite;
+    }
+    .file-block:nth-child(2) { animation-delay: 0.5s; }
+    .file-block:nth-child(3) { animation-delay: 1s; }
 
     .title { fill: #1f2328; }
     .subtitle { fill: #656d76; }
@@ -23,47 +64,53 @@
     @media (prefers-color-scheme: dark) {
       .title { fill: #ffffff; }
       .subtitle { fill: #8b949e; }
+      .file-block { filter: drop-shadow(0 2px 8px rgba(234, 179, 80, 0.3)); }
     }
   </style>
 
-  <!-- Overlay stack visualization -->
-  <g transform="translate(60, 50)">
-    <!-- Lower layer (real filesystem) - blue/gray -->
-    <g class="lower">
-      <rect x="0" y="60" width="100" height="50" rx="6" fill="#64748b" opacity="0.9"/>
-      <text x="50" y="90" font-family="system-ui, sans-serif" font-size="11" fill="white" text-anchor="middle">real fs</text>
-    </g>
-
-    <!-- Upper layer (SQLite overlay) - golden loaf color -->
-    <g class="upper">
-      <rect x="10" y="35" width="100" height="50" rx="6" fill="#eab350"/>
-      <text x="60" y="65" font-family="system-ui, sans-serif" font-size="11" fill="#5c4010" text-anchor="middle">.loaf</text>
-    </g>
-
-    <!-- Overlay indicator lines -->
-    <path d="M55 85 L55 110" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
-    <path d="M65 85 L65 110" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+  <!-- File stack (original) -->
+  <g transform="translate(45, 55)">
+    <rect class="file-block" x="0" y="50" width="55" height="40" rx="6" fill="#64748b"/>
+    <rect class="file-block" x="8" y="25" width="55" height="40" rx="6" fill="#94a3b8"/>
+    <rect class="file-block" x="16" y="0" width="55" height="40" rx="6" fill="#eab350"/>
   </g>
 
-  <!-- Arrow to accept/reject -->
-  <path d="M175 100 L210 100" stroke="#8b949e" stroke-width="2" stroke-dasharray="4,4" opacity="0.6"/>
-  <path d="M205 95 L215 100 L205 105" fill="none" stroke="#8b949e" stroke-width="2" opacity="0.6"/>
+  <!-- Fork paths -->
+  <g fill="none" stroke-width="2.5" stroke-linecap="round">
+    <!-- Main stem -->
+    <path d="M120 100 L150 100" stroke="#8b949e"/>
 
-  <!-- Accept (checkmark) -->
-  <g class="check" transform="translate(225, 70)">
-    <circle cx="15" cy="15" r="15" fill="#22c55e" opacity="0.9"/>
+    <!-- Upper fork (accept path) -->
+    <path id="acceptPath" class="fork-path" d="M150 100 C180 100, 190 70, 220 70" stroke="#22c55e"/>
+
+    <!-- Lower fork (reject path) -->
+    <path id="rejectPath" class="fork-path" d="M150 100 C180 100, 190 130, 220 130" stroke="#ef4444" style="animation-delay: 0.3s;"/>
+  </g>
+
+  <!-- Flowing particles on accept path -->
+  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
+  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
+  <circle class="particle" r="3" fill="#22c55e" style="offset-path: path('M150 100 C180 100, 190 70, 220 70');"/>
+
+  <!-- Flowing particles on reject path -->
+  <circle class="particle" r="3" fill="#ef4444" style="offset-path: path('M150 100 C180 100, 190 130, 220 130'); animation-delay: 0.15s;"/>
+  <circle class="particle" r="3" fill="#ef4444" style="offset-path: path('M150 100 C180 100, 190 130, 220 130'); animation-delay: 0.55s;"/>
+
+  <!-- Accept icon -->
+  <g class="accept-icon" transform="translate(225, 55)">
+    <circle cx="15" cy="15" r="16" fill="#22c55e"/>
     <path d="M8 15 L13 20 L22 10" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
-  <!-- Reject (X) -->
-  <g class="reject" transform="translate(225, 105)">
-    <circle cx="15" cy="15" r="15" fill="#ef4444" opacity="0.9"/>
+  <!-- Reject icon -->
+  <g class="reject-icon" transform="translate(225, 115)">
+    <circle cx="15" cy="15" r="16" fill="#ef4444"/>
     <path d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
   </g>
 
   <!-- Title -->
-  <text class="title" x="280" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="700">loaf</text>
+  <text class="title" x="290" y="95" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="68" font-weight="700" letter-spacing="-2">loaf</text>
 
   <!-- Subtitle -->
-  <text class="subtitle" x="280" y="130" font-family="system-ui, -apple-system, sans-serif" font-size="18">Fork your filesystem. Accept or reject.</text>
+  <text class="subtitle" x="290" y="130" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="17">Fork your filesystem. Accept or reject.</text>
 </svg>
