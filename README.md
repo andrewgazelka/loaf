@@ -14,7 +14,7 @@ Overlay filesystem for macOS. Let AI modify your codebase freely, then accept or
 ┌─────────────────────────────────────┐
 │        Your commands / AI           │
 ├─────────────────────────────────────┤
-│     Seatbelt Sandbox                │  ← Blocks writes outside overlay
+│     Seatbelt Sandbox                │  ← Blocks direct writes to project
 ├─────────────────────────────────────┤
 │     NFS Server (userspace)          │  ← Intercepts all ops
 ├─────────────────────────────────────┤
@@ -25,8 +25,8 @@ Overlay filesystem for macOS. Let AI modify your codebase freely, then accept or
 ```
 
 **Two layers of protection:**
-1. **NFS overlay** - Copy-on-write semantics, all modifications stored in SQLite
-2. **Seatbelt sandbox** - macOS kernel-level restriction, blocks writes outside the overlay
+1. **NFS overlay** - Copy-on-write semantics, all project modifications stored in SQLite
+2. **Seatbelt sandbox** - Prevents bypassing overlay via absolute paths to project directory
 
 ## Usage
 
