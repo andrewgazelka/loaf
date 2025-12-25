@@ -1,5 +1,6 @@
 <p align="center">
-  <img src=".github/assets/header.svg" alt="loaf" width="100%"/>
+  <img width="900" alt="image" src="https://github.com/user-attachments/assets/837d8081-4019-42a0-b82b-b141a6128a20" />
+
 </p>
 
 <p align="center">
