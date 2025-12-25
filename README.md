@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <code>cargo install loaf && loaf run claude</code>
+  <code>cargo install --git https://github.com/andrewgazelka/loaf && loaf run claude</code>
 </p>
 
 Overlay filesystem for macOS. Let AI modify your codebase freely, then accept or reject changes.
