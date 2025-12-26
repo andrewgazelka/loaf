@@ -28,7 +28,7 @@ impl OverlayFs {
             next_inode: 1_000_000,
         };
 
-        overlay.register_path(1, "/".to_string());
+        overlay.register_path(1, "/".to_owned());
 
         Ok(overlay)
     }
@@ -39,7 +39,7 @@ impl OverlayFs {
     }
 
     fn get_path(&self, inode: u64) -> Option<&str> {
-        self.inode_to_path.get(&inode).map(|s| s.as_str())
+        self.inode_to_path.get(&inode).map(String::as_str)
     }
 
     /// Public version for debugging/logging
@@ -53,7 +53,7 @@ impl OverlayFs {
         }
         let inode = self.next_inode;
         self.next_inode += 1;
-        self.register_path(inode, path.to_string());
+        self.register_path(inode, path.to_owned());
         inode
     }
 
@@ -73,11 +73,11 @@ impl OverlayFs {
         self.base_path.join(trimmed)
     }
 
-    pub fn root_id(&self) -> u64 {
-        1
-    }
+    pub const ROOT_ID: u64 = 1;
 
     pub fn getattr(&self, inode: u64) -> color_eyre::Result<Attrs> {
+        use std::os::unix::fs::MetadataExt as _;
+
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?;
@@ -102,7 +102,6 @@ impl OverlayFs {
             ItemType::File
         };
 
-        use std::os::unix::fs::MetadataExt as _;
         Ok(Attrs {
             file_id: inode,
             parent_id: 0,
@@ -125,7 +124,7 @@ impl OverlayFs {
         let parent_path = self
             .get_path(parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("parent inode {parent_id} not found"))?
-            .to_string();
+            .to_owned();
 
         let child_path = Self::join_path(&parent_path, name);
 
@@ -155,17 +154,19 @@ impl OverlayFs {
         let parent_path = self
             .get_path(parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("parent inode {parent_id} not found"))?
-            .to_string();
+            .to_owned();
 
         let child_path = Self::join_path(&parent_path, name);
 
-        self.db.remove_whiteout(&child_path)?;
+        self.db.remove_whiteout(&child_path);
         self.db.create_by_path(&child_path, item_type, mode)?;
 
         Ok(self.get_or_create_inode(&child_path))
     }
 
     pub fn read(&self, inode: u64, offset: u64, buf: &mut [u8]) -> color_eyre::Result<usize> {
+        use std::io::{Read as _, Seek as _, SeekFrom};
+
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?;
@@ -179,7 +180,6 @@ impl OverlayFs {
         }
 
         let real = self.real_path(path);
-        use std::io::{Read as _, Seek as _, SeekFrom};
         let mut file = std::fs::File::open(&real)
             .map_err(|e| color_eyre::eyre::eyre!("failed to open {real:?}: {e}"))?;
 
@@ -191,11 +191,11 @@ impl OverlayFs {
         Ok(n)
     }
 
-    pub fn write(&mut self, inode: u64, offset: u64, data: &[u8]) -> color_eyre::Result<usize> {
+    pub fn write(&self, inode: u64, offset: u64, data: &[u8]) -> color_eyre::Result<usize> {
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?
-            .to_string();
+            .to_owned();
 
         if !self.db.exists_by_path(&path) {
             self.db.create_by_path(&path, ItemType::File, 0o644)?;
@@ -209,11 +209,11 @@ impl OverlayFs {
         self.db.write_by_path(&path, offset, data)
     }
 
-    pub fn remove(&mut self, inode: u64) -> color_eyre::Result<()> {
+    pub fn remove(&self, inode: u64) -> color_eyre::Result<()> {
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?
-            .to_string();
+            .to_owned();
 
         if self.db.exists_by_path(&path) {
             self.db.remove_by_path(&path)?;
@@ -242,7 +242,7 @@ impl OverlayFs {
 
         target
             .to_str()
-            .map(|s| s.to_string())
+            .map(str::to_owned)
             .ok_or_else(|| color_eyre::eyre::eyre!("symlink target is not valid UTF-8"))
     }
 
@@ -253,15 +253,17 @@ impl OverlayFs {
         new_parent_id: u64,
         new_name: &str,
     ) -> color_eyre::Result<()> {
+        use std::os::unix::fs::MetadataExt as _;
+
         let old_parent_path = self
             .get_path(old_parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("old parent inode {old_parent_id} not found"))?
-            .to_string();
+            .to_owned();
 
         let new_parent_path = self
             .get_path(new_parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("new parent inode {new_parent_id} not found"))?
-            .to_string();
+            .to_owned();
 
         let old_path = Self::join_path(&old_parent_path, old_name);
         let new_path = Self::join_path(&new_parent_path, new_name);
@@ -283,7 +285,6 @@ impl OverlayFs {
                 ItemType::File
             };
 
-            use std::os::unix::fs::MetadataExt as _;
             self.db.create_by_path(&old_path, item_type, meta.mode())?;
 
             if item_type == ItemType::File {
@@ -310,17 +311,19 @@ impl OverlayFs {
     }
 
     pub fn setattr(
-        &mut self,
+        &self,
         inode: u64,
         mode: Option<u32>,
         size: Option<u64>,
         atime: Option<(i64, i64)>,
         mtime: Option<(i64, i64)>,
     ) -> color_eyre::Result<()> {
+        use std::os::unix::fs::MetadataExt as _;
+
         let path = self
             .get_path(inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {inode} not found"))?
-            .to_string();
+            .to_owned();
 
         // Only copy to overlay if there's an actual content/permission modification.
         // Time updates (atime, mtime) on files not in overlay should be ignored -
@@ -351,7 +354,6 @@ impl OverlayFs {
                 ItemType::File
             };
 
-            use std::os::unix::fs::MetadataExt as _;
             self.db.create_by_path(&path, item_type, meta.mode())?;
 
             if item_type == ItemType::File {
@@ -369,15 +371,14 @@ impl OverlayFs {
         }
 
         if atime.is_some() || mtime.is_some() {
-            let (atime_sec, atime_nsec) = atime.unwrap_or_else(|| {
-                let attrs = self.db.get_attrs_by_path(&path).unwrap();
-                (attrs.atime_sec, attrs.atime_nsec)
-            });
+            // Get current attrs to fill in missing time values
+            let current_attrs = self.db.get_attrs_by_path(&path)?;
 
-            let (mtime_sec, mtime_nsec) = mtime.unwrap_or_else(|| {
-                let attrs = self.db.get_attrs_by_path(&path).unwrap();
-                (attrs.mtime_sec, attrs.mtime_nsec)
-            });
+            let (atime_sec, atime_nsec) =
+                atime.unwrap_or((current_attrs.atime_sec, current_attrs.atime_nsec));
+
+            let (mtime_sec, mtime_nsec) =
+                mtime.unwrap_or((current_attrs.mtime_sec, current_attrs.mtime_nsec));
 
             self.db.update_times_by_path(
                 &path,
@@ -399,11 +400,11 @@ impl OverlayFs {
         let parent_path = self
             .get_path(parent_id)
             .ok_or_else(|| color_eyre::eyre::eyre!("parent inode {parent_id} not found"))?
-            .to_string();
+            .to_owned();
 
         let link_path = Self::join_path(&parent_path, name);
 
-        self.db.remove_whiteout(&link_path)?;
+        self.db.remove_whiteout(&link_path);
         self.db.create_symlink_by_path(&link_path, target)?;
 
         Ok(self.get_or_create_inode(&link_path))
@@ -413,7 +414,7 @@ impl OverlayFs {
         let dir_path = self
             .get_path(dir_inode)
             .ok_or_else(|| color_eyre::eyre::eyre!("inode {dir_inode} not found"))?
-            .to_string();
+            .to_owned();
 
         let mut entries = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -443,9 +444,8 @@ impl OverlayFs {
                     continue;
                 }
 
-                let meta = match entry.metadata() {
-                    Ok(m) => m,
-                    Err(_) => continue,
+                let Ok(meta) = entry.metadata() else {
+                    continue;
                 };
 
                 let item_type = if meta.is_dir() {
@@ -481,7 +481,14 @@ impl OverlayFs {
         let inodes = stmt
             .query_map([], |row| {
                 let path: String = row.get(0)?;
-                let item_type = ItemType::try_from(row.get::<_, i64>(1)?).unwrap();
+                let type_val = row.get::<_, i64>(1)?;
+                let item_type = ItemType::try_from(type_val).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Integer,
+                        format!("invalid item type {type_val}: {e}").into(),
+                    )
+                })?;
                 Ok((path, item_type))
             })
             .wrap_err("failed to query all inodes")?
@@ -546,7 +553,7 @@ mod tests {
     fn test_mkdir() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let dir_id = overlay.mkdir(root_id, "testdir", 0o755)?;
 
         let attrs = overlay.getattr(dir_id)?;
@@ -560,7 +567,7 @@ mod tests {
     fn test_symlink() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let link_id = overlay.symlink(root_id, "link", "/target/path")?;
 
         let attrs = overlay.getattr(link_id)?;
@@ -576,7 +583,7 @@ mod tests {
     fn test_rename_file() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let file_id = overlay.create(root_id, "old.txt", ItemType::File, 0o644)?;
         overlay.write(file_id, 0, b"test data")?;
 
@@ -598,7 +605,7 @@ mod tests {
     fn test_rename_directory() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let dir_id = overlay.mkdir(root_id, "olddir", 0o755)?;
         let _file_id = overlay.create(dir_id, "file.txt", ItemType::File, 0o644)?;
 
@@ -617,7 +624,7 @@ mod tests {
     fn test_setattr_mode() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let file_id = overlay.create(root_id, "file.txt", ItemType::File, 0o644)?;
 
         overlay.setattr(file_id, Some(0o600), None, None, None)?;
@@ -632,7 +639,7 @@ mod tests {
     fn test_setattr_size() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let file_id = overlay.create(root_id, "file.txt", ItemType::File, 0o644)?;
         overlay.write(file_id, 0, b"hello world")?;
 
@@ -653,7 +660,7 @@ mod tests {
     fn test_setattr_times() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         let file_id = overlay.create(root_id, "file.txt", ItemType::File, 0o644)?;
 
         let atime = (1000i64, 2000i64);
@@ -673,7 +680,7 @@ mod tests {
     fn test_readdir_overlay_entries() -> color_eyre::Result<()> {
         let (mut overlay, _temp) = setup_test_overlay()?;
 
-        let root_id = overlay.root_id();
+        let root_id = OverlayFs::ROOT_ID;
         overlay.create(root_id, "file1.txt", ItemType::File, 0o644)?;
         overlay.mkdir(root_id, "dir1", 0o755)?;
         overlay.symlink(root_id, "link1", "/target")?;

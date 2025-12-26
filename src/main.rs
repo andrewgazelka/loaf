@@ -1,3 +1,10 @@
+// CLI binary needs to print output
+#![expect(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "CLI binary output"
+)]
+
 mod db;
 mod nfs;
 mod overlay;
@@ -68,6 +75,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::util::SubscriberInitExt as _;
+
     color_eyre::install()?;
 
     let cli = <Cli as clap::Parser>::parse();
@@ -75,7 +85,7 @@ async fn main() -> color_eyre::Result<()> {
     // Set up logging - always write to file, optionally to terminal with --verbose
     let log_file_path = cli.log_file.clone();
     let log_file = std::fs::File::create(&log_file_path)
-        .wrap_err_with(|| format!("failed to create log file at {:?}", log_file_path))?;
+        .wrap_err_with(|| format!("failed to create log file at {}", log_file_path.display()))?;
 
     let file_layer = tracing_subscriber::fmt::layer()
         .with_writer(log_file)
@@ -87,9 +97,6 @@ async fn main() -> color_eyre::Result<()> {
         tracing_subscriber::EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
     };
-
-    use tracing_subscriber::layer::SubscriberExt as _;
-    use tracing_subscriber::util::SubscriberInitExt as _;
 
     if cli.verbose {
         // With --verbose: log to both file and terminal
@@ -116,9 +123,9 @@ async fn main() -> color_eyre::Result<()> {
             args,
             no_sandbox,
         } => run_command(command, args, no_sandbox).await?,
-        Commands::Diff { overlay } => diff_command(overlay).await?,
-        Commands::Accept { overlay } => accept_command(overlay).await?,
-        Commands::Reject { overlay } => reject_command(overlay).await?,
+        Commands::Diff { overlay } => diff_command(overlay)?,
+        Commands::Accept { overlay } => accept_command(overlay)?,
+        Commands::Reject { overlay } => reject_command(overlay)?,
     }
 
     Ok(())
@@ -135,37 +142,43 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
     // Validate path exists
     if !path.exists() {
         color_eyre::eyre::bail!(
-            "mount path does not exist: {path:?}\n\
-             Create the directory first with: mkdir -p {path:?}"
+            "mount path does not exist: {}\n\
+             Create the directory first with: mkdir -p {}",
+            path.display(),
+            path.display()
         );
     }
 
     if !path.is_dir() {
         color_eyre::eyre::bail!(
-            "mount path is not a directory: {path:?}\n\
-             Loaf can only mount on directories"
+            "mount path is not a directory: {}\n\
+             Loaf can only mount on directories",
+            path.display()
         );
     }
 
     let path = path
         .canonicalize()
-        .wrap_err_with(|| format!("failed to canonicalize mount path {path:?}"))?;
+        .wrap_err_with(|| format!("failed to canonicalize mount path {}", path.display()))?;
 
     // Create overlay database
     let overlay_path = path.join(".loaf");
     if overlay_path.exists() {
         color_eyre::eyre::bail!(
-            "overlay already exists at {overlay_path:?}\n\
+            "overlay already exists at {}\n\
              Either:\n\
-             - Unmount first with: loaf unmount {path:?}\n\
-             - Delete existing overlay with: loaf reject {path:?}\n\
-             - Choose a different directory"
+             - Unmount first with: loaf unmount {}\n\
+             - Delete existing overlay with: loaf reject {}\n\
+             - Choose a different directory",
+            overlay_path.display(),
+            path.display(),
+            path.display()
         );
     }
 
-    tracing::info!("creating overlay database at {overlay_path:?}");
+    tracing::info!("creating overlay database at {}", overlay_path.display());
     let overlay = overlay::OverlayFs::new(&overlay_path, &path)
-        .wrap_err_with(|| format!("failed to create overlay at {overlay_path:?}"))?;
+        .wrap_err_with(|| format!("failed to create overlay at {}", overlay_path.display()))?;
 
     // Start NFS server
     tracing::info!("starting NFS server");
@@ -177,10 +190,10 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
     tracing::info!("NFS server listening on port {}", server.port);
 
     // Mount via mount_nfs
-    tracing::info!("mounting NFS filesystem at {path:?}");
+    tracing::info!("mounting NFS filesystem at {}", path.display());
     nfs::mount_nfs(server.port, &path)
         .await
-        .wrap_err_with(|| format!("failed to mount NFS at {path:?}"))?;
+        .wrap_err_with(|| format!("failed to mount NFS at {}", path.display()))?;
 
     // Save mount state
     let state_path = overlay_path.with_extension("loaf.state");
@@ -191,26 +204,26 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
     let state_json =
         serde_json::to_string_pretty(&state).wrap_err("failed to serialize mount state")?;
     std::fs::write(&state_path, state_json)
-        .wrap_err_with(|| format!("failed to write mount state to {state_path:?}"))?;
+        .wrap_err_with(|| format!("failed to write mount state to {}", state_path.display()))?;
 
-    println!("✓ Overlay mounted at {path:?}");
+    println!("✓ Overlay mounted at {}", path.display());
     println!("  NFS server running on port {}", server.port);
-    println!("  Overlay database: {overlay_path:?}");
+    println!("  Overlay database: {}", overlay_path.display());
     println!("\nPress Ctrl+C to unmount and stop the server");
 
-    // Install signal handler for graceful shutdown
-    let path_for_signal = path.clone();
-    tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.ok();
-        tracing::info!("received Ctrl+C, unmounting...");
-        if let Err(e) = nfs::unmount_nfs(&path_for_signal).await {
-            tracing::error!("failed to unmount: {}", e);
-        }
-        std::process::exit(0);
-    });
+    // Wait for Ctrl+C signal
+    tokio::signal::ctrl_c()
+        .await
+        .wrap_err("failed to wait for ctrl+c")?;
 
-    // Wait for server task (runs until killed)
-    server_task.await.wrap_err("NFS server task failed")?;
+    tracing::info!("received Ctrl+C, unmounting...");
+    nfs::unmount_nfs(&path)
+        .await
+        .wrap_err("failed to unmount")?;
+
+    // Abort the server task since we're done
+    server_task.abort();
+    drop(server_task.await); // Ignore JoinError from abort
 
     Ok(())
 }
@@ -218,30 +231,31 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
 async fn unmount_command(path: PathBuf) -> color_eyre::Result<()> {
     if !path.exists() {
         color_eyre::eyre::bail!(
-            "path does not exist: {path:?}\n\
-             Check that the path is correct"
+            "path does not exist: {}\n\
+             Check that the path is correct",
+            path.display()
         );
     }
 
     let path = path
         .canonicalize()
-        .wrap_err_with(|| format!("failed to canonicalize path {path:?}"))?;
+        .wrap_err_with(|| format!("failed to canonicalize path {}", path.display()))?;
 
-    tracing::info!("unmounting NFS filesystem at {path:?}");
+    tracing::info!("unmounting NFS filesystem at {}", path.display());
     nfs::unmount_nfs(&path)
         .await
-        .wrap_err_with(|| format!("failed to unmount {path:?}"))?;
+        .wrap_err_with(|| format!("failed to unmount {}", path.display()))?;
 
     // Clean up state file
     let overlay_path = path.join(".loaf");
     let state_path = overlay_path.with_extension("loaf.state");
     if state_path.exists() {
         std::fs::remove_file(&state_path)
-            .wrap_err_with(|| format!("failed to remove state file {state_path:?}"))?;
+            .wrap_err_with(|| format!("failed to remove state file {}", state_path.display()))?;
     }
 
-    println!("✓ Unmounted {path:?}");
-    println!("  Overlay database preserved at {overlay_path:?}");
+    println!("✓ Unmounted {}", path.display());
+    println!("  Overlay database preserved at {}", overlay_path.display());
     println!("  Use 'loaf diff' to view changes or 'loaf accept' to apply them");
 
     Ok(())
@@ -252,6 +266,9 @@ async fn run_command(
     args: Vec<String>,
     no_sandbox: bool,
 ) -> color_eyre::Result<()> {
+    use std::io::Write as _;
+    use std::os::unix::process::CommandExt as _;
+
     // Validate command exists
     if which::which(&command).is_err() {
         color_eyre::eyre::bail!(
@@ -267,9 +284,9 @@ async fn run_command(
     let temp_dir = tempfile::tempdir().wrap_err("failed to create temporary directory")?;
     let overlay_path = temp_dir.path().join("overlay.loaf");
 
-    tracing::info!("creating temporary overlay at {overlay_path:?}");
+    tracing::info!("creating temporary overlay at {}", overlay_path.display());
     let overlay = overlay::OverlayFs::new(&overlay_path, &base_path)
-        .wrap_err_with(|| format!("failed to create overlay at {overlay_path:?}"))?;
+        .wrap_err_with(|| format!("failed to create overlay at {}", overlay_path.display()))?;
 
     // Start NFS server on random port
     tracing::info!("starting NFS server");
@@ -283,18 +300,18 @@ async fn run_command(
     let mount_dir = temp_dir.path().join("mount");
     tokio::fs::create_dir(&mount_dir)
         .await
-        .wrap_err_with(|| format!("failed to create mount point {mount_dir:?}"))?;
+        .wrap_err_with(|| format!("failed to create mount point {}", mount_dir.display()))?;
     let mount_dir = mount_dir
         .canonicalize()
         .wrap_err("failed to canonicalize mount directory")?;
 
     // Mount overlay
-    tracing::info!("mounting NFS filesystem at {mount_dir:?}");
+    tracing::info!("mounting NFS filesystem at {}", mount_dir.display());
     nfs::mount_nfs(server.port, &mount_dir)
         .await
-        .wrap_err_with(|| format!("failed to mount NFS at {mount_dir:?}"))?;
+        .wrap_err_with(|| format!("failed to mount NFS at {}", mount_dir.display()))?;
 
-    println!("✓ Overlay mounted at {mount_dir:?}");
+    println!("✓ Overlay mounted at {}", mount_dir.display());
     if !no_sandbox {
         println!("  Sandbox: enabled (project dir protected)");
     }
@@ -304,8 +321,6 @@ async fn run_command(
     // Run the command with cwd set to mount point
     // Use std::process::Command for pre_exec sandbox support
     let status = {
-        use std::os::unix::process::CommandExt as _;
-
         let mut cmd = std::process::Command::new(&command);
         cmd.args(&args).current_dir(&mount_dir);
 
@@ -320,12 +335,17 @@ async fn run_command(
                 eprintln!("  log stream --predicate 'process == \"sandboxd\"'");
             }
 
-            // SAFETY: pre_exec runs after fork, before exec in single-threaded child
+            // Closure that applies sandbox in child process
+            let sandbox_fn = move || {
+                // SAFETY: apply_sandbox is safe to call in child process after fork,
+                // before exec. The sandbox cannot be removed once applied.
+                unsafe { sandbox::apply_sandbox(&profile) }.map_err(std::io::Error::other)
+            };
+
+            // SAFETY: pre_exec runs after fork, before exec in single-threaded child.
+            // The closure is safe because it only applies a macOS sandbox profile.
             unsafe {
-                cmd.pre_exec(move || {
-                    sandbox::apply_sandbox(&profile)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-                });
+                cmd.pre_exec(sandbox_fn);
             }
         }
 
@@ -347,17 +367,18 @@ async fn run_command(
     tracing::info!("unmounting overlay");
     nfs::unmount_nfs(&mount_dir)
         .await
-        .wrap_err_with(|| format!("failed to unmount {mount_dir:?}"))?;
+        .wrap_err_with(|| format!("failed to unmount {}", mount_dir.display()))?;
 
     // Abort server task (we're done with it)
     server_task.abort();
-    let _ = server_task.await; // Ignore abort error
+    drop(server_task.await); // Ignore abort error
 
     // Open overlay to check for changes
-    let mut overlay =
+    let mut reopened_overlay =
         overlay::OverlayFs::new(&overlay_path, &base_path).wrap_err("failed to reopen overlay")?;
 
-    let changes = get_overlay_changes(&overlay).wrap_err("failed to compute overlay changes")?;
+    let changes =
+        get_overlay_changes(&reopened_overlay).wrap_err("failed to compute overlay changes")?;
 
     if changes.is_empty() {
         println!("\nNo changes detected in overlay.");
@@ -373,7 +394,6 @@ async fn run_command(
     // Prompt user to accept or reject
     println!();
     print!("Apply changes to real filesystem? [y/N]: ");
-    use std::io::Write as _;
     std::io::stdout().flush()?;
 
     let mut response = String::new();
@@ -384,7 +404,7 @@ async fn run_command(
     let response = response.trim().to_lowercase();
     if response == "y" || response == "yes" {
         println!("\nApplying changes...");
-        apply_overlay_changes(&mut overlay).wrap_err("failed to apply overlay changes")?;
+        apply_overlay_changes(&mut reopened_overlay).wrap_err("failed to apply overlay changes")?;
         println!("✓ Changes applied successfully");
     } else {
         println!("\nChanges discarded.");
@@ -398,7 +418,7 @@ fn find_overlay_path(overlay_arg: Option<PathBuf>) -> color_eyre::Result<PathBuf
 
     if let Some(path) = overlay_arg {
         if !path.exists() {
-            color_eyre::eyre::bail!("overlay database not found at {path:?}");
+            color_eyre::eyre::bail!("overlay database not found at {}", path.display());
         }
         return Ok(path);
     }
@@ -420,7 +440,7 @@ fn find_overlay_path(overlay_arg: Option<PathBuf>) -> color_eyre::Result<PathBuf
     }
 }
 
-async fn diff_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+fn diff_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
     use color_eyre::eyre::WrapErr as _;
 
     let overlay_path = find_overlay_path(overlay_arg)?;
@@ -444,7 +464,10 @@ async fn diff_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
         return Ok(());
     }
 
-    println!("Changes in overlay (relative to {base_path:?}):\n");
+    println!(
+        "Changes in overlay (relative to {}):\n",
+        base_path.display()
+    );
     for change in changes {
         println!("{change}");
     }
@@ -452,8 +475,9 @@ async fn diff_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
     Ok(())
 }
 
-async fn accept_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+fn accept_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
     use color_eyre::eyre::WrapErr as _;
+    use std::io::Write as _;
 
     let overlay_path = find_overlay_path(overlay_arg)?;
 
@@ -482,8 +506,7 @@ async fn accept_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> 
     }
 
     println!();
-    print!("Apply these changes to {base_path:?}? [y/N]: ");
-    use std::io::Write as _;
+    print!("Apply these changes to {}? [y/N]: ", base_path.display());
     std::io::stdout().flush()?;
 
     let mut response = String::new();
@@ -501,21 +524,24 @@ async fn accept_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> 
     apply_overlay_changes(&mut overlay).wrap_err("failed to apply changes")?;
 
     println!("✓ Changes applied successfully");
-    println!("\nOverlay database preserved at {overlay_path:?}");
+    println!("\nOverlay database preserved at {}", overlay_path.display());
     println!("You can delete it with 'loaf reject' or keep it for reference");
 
     Ok(())
 }
 
-async fn reject_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
+fn reject_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> {
     use color_eyre::eyre::WrapErr as _;
+    use std::io::Write as _;
 
     let overlay_path = find_overlay_path(overlay_arg)?;
 
-    println!("This will delete the overlay database at {overlay_path:?}");
+    println!(
+        "This will delete the overlay database at {}",
+        overlay_path.display()
+    );
     println!("All changes will be permanently lost.");
     print!("Continue? [y/N]: ");
-    use std::io::Write as _;
     std::io::stdout().flush()?;
 
     let mut response = String::new();
@@ -529,8 +555,12 @@ async fn reject_command(overlay_arg: Option<PathBuf>) -> color_eyre::Result<()> 
         return Ok(());
     }
 
-    std::fs::remove_file(&overlay_path)
-        .wrap_err_with(|| format!("failed to delete overlay database at {overlay_path:?}"))?;
+    std::fs::remove_file(&overlay_path).wrap_err_with(|| {
+        format!(
+            "failed to delete overlay database at {}",
+            overlay_path.display()
+        )
+    })?;
 
     let state_path = overlay_path.with_extension("loaf.state");
     if state_path.exists() {
@@ -593,6 +623,7 @@ fn get_overlay_changes(overlay: &overlay::OverlayFs) -> color_eyre::Result<Vec<S
 /// Apply overlay changes to real filesystem
 fn apply_overlay_changes(overlay: &mut overlay::OverlayFs) -> color_eyre::Result<()> {
     use color_eyre::eyre::WrapErr as _;
+    use std::os::unix::fs::PermissionsExt as _;
 
     let base_path = overlay.base_path().to_path_buf();
     let inodes = overlay
@@ -604,57 +635,61 @@ fn apply_overlay_changes(overlay: &mut overlay::OverlayFs) -> color_eyre::Result
 
         match item_type {
             crate::db::ItemType::Directory => {
-                std::fs::create_dir_all(&real_path)
-                    .wrap_err_with(|| format!("failed to create directory {real_path:?}"))?;
+                std::fs::create_dir_all(&real_path).wrap_err_with(|| {
+                    format!("failed to create directory {}", real_path.display())
+                })?;
             }
             crate::db::ItemType::File => {
                 if let Some(parent) = real_path.parent() {
                     std::fs::create_dir_all(parent).wrap_err_with(|| {
-                        format!("failed to create parent directory {parent:?}")
+                        format!("failed to create parent directory {}", parent.display())
                     })?;
                 }
 
                 let data = overlay
                     .read_file_data(&path)
-                    .wrap_err_with(|| format!("failed to read file data for {path:?}"))?;
+                    .wrap_err_with(|| format!("failed to read file data for {path}"))?;
 
                 std::fs::write(&real_path, &data)
-                    .wrap_err_with(|| format!("failed to write file {real_path:?}"))?;
+                    .wrap_err_with(|| format!("failed to write file {}", real_path.display()))?;
 
-                let root_id = overlay.root_id();
+                let root_id = overlay::OverlayFs::ROOT_ID;
                 let inode = overlay
                     .lookup(root_id, path.strip_prefix('/').unwrap_or(&path))
-                    .wrap_err_with(|| format!("failed to lookup {path:?}"))?;
+                    .wrap_err_with(|| format!("failed to lookup {path}"))?;
                 let attrs = overlay
                     .getattr(inode)
-                    .wrap_err_with(|| format!("failed to get attrs for {path:?}"))?;
+                    .wrap_err_with(|| format!("failed to get attrs for {path}"))?;
 
-                use std::os::unix::fs::PermissionsExt as _;
                 let perms = std::fs::Permissions::from_mode(attrs.mode);
-                std::fs::set_permissions(&real_path, perms)
-                    .wrap_err_with(|| format!("failed to set permissions for {real_path:?}"))?;
+                std::fs::set_permissions(&real_path, perms).wrap_err_with(|| {
+                    format!("failed to set permissions for {}", real_path.display())
+                })?;
             }
             crate::db::ItemType::Symlink => {
                 if let Some(parent) = real_path.parent() {
                     std::fs::create_dir_all(parent).wrap_err_with(|| {
-                        format!("failed to create parent directory {parent:?}")
+                        format!("failed to create parent directory {}", parent.display())
                     })?;
                 }
 
-                let root_id = overlay.root_id();
+                let root_id = overlay::OverlayFs::ROOT_ID;
                 let inode = overlay
                     .lookup(root_id, path.strip_prefix('/').unwrap_or(&path))
-                    .wrap_err_with(|| format!("failed to lookup symlink {path:?}"))?;
+                    .wrap_err_with(|| format!("failed to lookup symlink {path}"))?;
                 let target = overlay
                     .readlink(inode)
-                    .wrap_err_with(|| format!("failed to read symlink target for {path:?}"))?;
+                    .wrap_err_with(|| format!("failed to read symlink target for {path}"))?;
 
                 if real_path.exists() || real_path.is_symlink() {
                     std::fs::remove_file(&real_path).ok();
                 }
 
                 std::os::unix::fs::symlink(&target, &real_path).wrap_err_with(|| {
-                    format!("failed to create symlink {real_path:?} -> {target:?}")
+                    format!(
+                        "failed to create symlink {} -> {target}",
+                        real_path.display()
+                    )
                 })?;
             }
         }
@@ -669,11 +704,12 @@ fn apply_overlay_changes(overlay: &mut overlay::OverlayFs) -> color_eyre::Result
 
         if real_path.exists() {
             if real_path.is_dir() {
-                std::fs::remove_dir_all(&real_path)
-                    .wrap_err_with(|| format!("failed to remove directory {real_path:?}"))?;
+                std::fs::remove_dir_all(&real_path).wrap_err_with(|| {
+                    format!("failed to remove directory {}", real_path.display())
+                })?;
             } else {
                 std::fs::remove_file(&real_path)
-                    .wrap_err_with(|| format!("failed to remove file {real_path:?}"))?;
+                    .wrap_err_with(|| format!("failed to remove file {}", real_path.display()))?;
             }
         }
     }

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-const SCHEMA_SQL: &str = r#"
+const SCHEMA_SQL: &str = r"
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS overlay_config (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS whiteouts (
 CREATE INDEX IF NOT EXISTS idx_inodes_parent ON inodes(parent_id);
 CREATE INDEX IF NOT EXISTS idx_inodes_path ON inodes(path);
 CREATE INDEX IF NOT EXISTS idx_xattrs_inode ON xattrs(inode_id);
-"#;
+";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -80,7 +80,6 @@ impl TryFrom<i64> for ItemType {
 #[derive(Debug, Clone)]
 pub struct Attrs {
     pub file_id: u64,
-    #[allow(dead_code)]
     pub parent_id: u64,
     pub item_type: ItemType,
     pub mode: u32,
@@ -107,7 +106,7 @@ fn now_timespec() -> (i64, i64) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
-    (now.as_secs() as i64, now.subsec_nanos() as i64)
+    (now.as_secs() as i64, i64::from(now.subsec_nanos()))
 }
 
 pub struct Database {
@@ -119,7 +118,7 @@ impl Database {
         use color_eyre::eyre::WrapErr as _;
 
         let conn = rusqlite::Connection::open(path)
-            .wrap_err_with(|| format!("failed to open database at {path:?}"))?;
+            .wrap_err_with(|| format!("failed to open database at {}", path.display()))?;
 
         conn.execute_batch(SCHEMA_SQL)
             .wrap_err("failed to initialize schema")?;
@@ -180,10 +179,18 @@ impl Database {
                  FROM inodes WHERE path = ?",
                 [path],
                 |row| {
+                    let type_val = row.get::<_, i64>(2)?;
+                    let item_type = ItemType::try_from(type_val).map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            2,
+                            rusqlite::types::Type::Integer,
+                            format!("invalid item type {type_val}: {e}").into(),
+                        )
+                    })?;
                     Ok(Attrs {
                         file_id: row.get::<_, i64>(0)? as u64,
                         parent_id: row.get::<_, i64>(1)? as u64,
-                        item_type: ItemType::try_from(row.get::<_, i64>(2)?).unwrap(),
+                        item_type,
                         mode: row.get(3)?,
                         uid: row.get(4)?,
                         gid: row.get(5)?,
@@ -305,7 +312,13 @@ impl Database {
 
         let available = data.len() - offset;
         let to_copy = available.min(buf.len());
-        buf[..to_copy].copy_from_slice(&data[offset..offset + to_copy]);
+        let src = data
+            .get(offset..offset + to_copy)
+            .ok_or_else(|| color_eyre::eyre::eyre!("slice out of bounds"))?;
+        let dst = buf
+            .get_mut(..to_copy)
+            .ok_or_else(|| color_eyre::eyre::eyre!("buffer too small"))?;
+        dst.copy_from_slice(src);
         Ok(to_copy)
     }
 
@@ -333,9 +346,13 @@ impl Database {
         let mut new_data = vec![0u8; new_size];
 
         if !current.is_empty() {
-            new_data[..current.len()].copy_from_slice(&current);
+            if let Some(dst) = new_data.get_mut(..current.len()) {
+                dst.copy_from_slice(&current);
+            }
         }
-        new_data[offset..offset + data.len()].copy_from_slice(data);
+        if let Some(dst) = new_data.get_mut(offset..offset + data.len()) {
+            dst.copy_from_slice(data);
+        }
 
         let (sec, nsec) = now_timespec();
 
@@ -377,11 +394,12 @@ impl Database {
         Ok(())
     }
 
-    pub fn remove_whiteout(&self, path: &str) -> color_eyre::Result<()> {
-        self.conn
-            .execute("DELETE FROM whiteouts WHERE path = ?", [path])
-            .ok();
-        Ok(())
+    pub fn remove_whiteout(&self, path: &str) {
+        // Ignore result - whiteout may not exist
+        drop(
+            self.conn
+                .execute("DELETE FROM whiteouts WHERE path = ?", [path]),
+        );
     }
 
     pub fn is_whiteout(&self, path: &str) -> bool {
@@ -410,10 +428,18 @@ impl Database {
 
         let entries = stmt
             .query_map([prefix, prefix], |row| {
+                let type_val = row.get::<_, i64>(2)?;
+                let item_type = ItemType::try_from(type_val).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Integer,
+                        format!("invalid item type {type_val}: {e}").into(),
+                    )
+                })?;
                 Ok(DirEntry {
                     inode_id: row.get::<_, i64>(0)? as u64,
                     name: row.get(1)?,
-                    item_type: ItemType::try_from(row.get::<_, i64>(2)?).unwrap(),
+                    item_type,
                 })
             })
             .wrap_err_with(|| format!("failed to query children of {parent_path:?}"))?
@@ -438,8 +464,8 @@ impl Database {
 
         if attrs.item_type == ItemType::Directory {
             // Update all paths that start with old_path/
-            let old_prefix = format!("{}/", old_path);
-            let new_prefix = format!("{}/", new_path);
+            let old_prefix = format!("{old_path}/");
+            let new_prefix = format!("{new_path}/");
 
             self.conn
                 .execute(
@@ -488,7 +514,7 @@ impl Database {
             data.resize(size, 0);
             data
         } else {
-            current[..size].to_vec()
+            current.get(..size).map(<[u8]>::to_vec).unwrap_or_default()
         };
 
         let (sec, nsec) = now_timespec();

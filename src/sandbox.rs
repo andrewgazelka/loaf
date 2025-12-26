@@ -9,6 +9,8 @@ use std::os::raw::c_char;
 use std::path::Path;
 
 // FFI bindings to libsystem_sandbox.dylib (part of System framework)
+// SAFETY: These are stable C ABI functions from macOS libsystem_sandbox.dylib.
+// They are documented in sandbox.h and used by major applications (Chromium, Firefox).
 unsafe extern "C" {
     /// Apply sandbox profile to current process.
     /// Returns 0 on success, -1 on failure.
@@ -32,17 +34,27 @@ pub unsafe fn apply_sandbox(profile: &str) -> Result<(), String> {
 
     let mut error: *mut c_char = std::ptr::null_mut();
 
-    let result = unsafe { sandbox_init(profile_cstr.as_ptr(), SANDBOX_NAMED_EXTERNAL, &mut error) };
+    // SAFETY: sandbox_init is a stable macOS API. We pass a valid C string,
+    // valid flags, and a valid pointer to receive the error buffer.
+    let result = unsafe {
+        sandbox_init(
+            profile_cstr.as_ptr(),
+            SANDBOX_NAMED_EXTERNAL,
+            std::ptr::addr_of_mut!(error),
+        )
+    };
 
     if result != 0 {
-        let err_msg = if !error.is_null() {
+        let err_msg = if error.is_null() {
+            "unknown sandbox error".to_owned()
+        } else {
+            // SAFETY: error is non-null, points to a C string allocated by sandbox_init.
             let msg = unsafe { CStr::from_ptr(error) }
                 .to_string_lossy()
                 .into_owned();
+            // SAFETY: error was allocated by sandbox_init, must be freed with sandbox_free_error.
             unsafe { sandbox_free_error(error) };
             msg
-        } else {
-            "unknown sandbox error".to_string()
         };
         return Err(err_msg);
     }

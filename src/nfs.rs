@@ -2,7 +2,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use color_eyre::eyre::WrapErr as _;
-use nfsserve::{nfs::*, tcp::NFSTcp as _, vfs::*};
+use nfsserve::nfs::{
+    fattr3, fileid3, filename3, ftype3, nfspath3, nfsstat3, nfstime3, sattr3, set_atime, set_mode3,
+    set_mtime, set_size3, specdata3,
+};
+use nfsserve::tcp::NFSTcp as _;
+use nfsserve::vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities};
 
 use crate::db::ItemType;
 use crate::overlay::OverlayFs;
@@ -36,9 +41,9 @@ impl NfsOverlay {
 
         // Add file type bits to mode
         let mode_with_type = match attrs.item_type {
-            ItemType::File => attrs.mode | 0o100000,      // S_IFREG
-            ItemType::Directory => attrs.mode | 0o040000, // S_IFDIR
-            ItemType::Symlink => attrs.mode | 0o120000,   // S_IFLNK
+            ItemType::File => attrs.mode | 0o100_000,      // S_IFREG
+            ItemType::Directory => attrs.mode | 0o040_000, // S_IFDIR
+            ItemType::Symlink => attrs.mode | 0o120_000,   // S_IFLNK
         };
 
         fattr3 {
@@ -69,14 +74,18 @@ impl NfsOverlay {
 
     /// Convert filename3 (Vec<u8>) to String
     fn filename_to_str(filename: &filename3) -> Result<&str, nfsstat3> {
-        std::str::from_utf8(filename).map_err(|_| nfsstat3::NFS3ERR_INVAL)
+        std::str::from_utf8(filename).map_err(|e| {
+            tracing::debug!("invalid UTF-8 in filename: {e}");
+            nfsstat3::NFS3ERR_INVAL
+        })
     }
 
     /// Convert nfspath3 (Vec<u8>) to String
     fn nfspath_to_string(path: &nfspath3) -> Result<String, nfsstat3> {
-        std::str::from_utf8(path)
-            .map(|s| s.to_string())
-            .map_err(|_| nfsstat3::NFS3ERR_INVAL)
+        std::str::from_utf8(path).map(str::to_owned).map_err(|e| {
+            tracing::debug!("invalid UTF-8 in path: {e}");
+            nfsstat3::NFS3ERR_INVAL
+        })
     }
 
     /// Map color_eyre errors to nfsstat3
@@ -98,11 +107,13 @@ impl NFSFileSystem for NfsOverlay {
     }
 
     async fn lookup(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
-        let name = Self::filename_to_str(filename)?.to_string();
+        let name = Self::filename_to_str(filename)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             overlay.lookup(dirid, &name).map_err(|e| {
                 tracing::debug!("lookup failed for {}/{}: {}", dirid, name, e);
                 if e.to_string().contains("not found") || e.to_string().contains("whited out") {
@@ -113,14 +124,16 @@ impl NFSFileSystem for NfsOverlay {
             })
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let overlay = inner.lock().unwrap();
+            let overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let attrs = overlay.getattr(id).map_err(|e| {
                 tracing::debug!("getattr failed for {}: {}", id, e);
                 if e.to_string().contains("not found") || e.to_string().contains("whited out") {
@@ -133,14 +146,16 @@ impl NFSFileSystem for NfsOverlay {
             Ok(Self::attrs_to_fattr3(&attrs))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let mode = match setattr.mode {
                 set_mode3::mode(m) => Some(m),
@@ -167,7 +182,7 @@ impl NFSFileSystem for NfsOverlay {
             // Get path for logging
             let path = overlay
                 .get_path_for_inode(id)
-                .unwrap_or_else(|| "<unknown>".to_string());
+                .unwrap_or_else(|| "<unknown>".to_owned());
             tracing::debug!(
                 "setattr inode={} path={} mode={:?} size={:?} atime={} mtime={}",
                 id,
@@ -179,23 +194,27 @@ impl NFSFileSystem for NfsOverlay {
             );
 
             let atime = match setattr.atime {
-                set_atime::SET_TO_CLIENT_TIME(t) => Some((t.seconds as i64, t.nseconds as i64)),
+                set_atime::SET_TO_CLIENT_TIME(t) => {
+                    Some((i64::from(t.seconds), i64::from(t.nseconds)))
+                }
                 set_atime::SET_TO_SERVER_TIME => {
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap();
-                    Some((now.as_secs() as i64, now.subsec_nanos() as i64))
+                        .unwrap_or_default();
+                    Some((now.as_secs() as i64, i64::from(now.subsec_nanos())))
                 }
                 set_atime::DONT_CHANGE => None,
             };
 
             let mtime = match setattr.mtime {
-                set_mtime::SET_TO_CLIENT_TIME(t) => Some((t.seconds as i64, t.nseconds as i64)),
+                set_mtime::SET_TO_CLIENT_TIME(t) => {
+                    Some((i64::from(t.seconds), i64::from(t.nseconds)))
+                }
                 set_mtime::SET_TO_SERVER_TIME => {
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap();
-                    Some((now.as_secs() as i64, now.subsec_nanos() as i64))
+                        .unwrap_or_default();
+                    Some((now.as_secs() as i64, i64::from(now.subsec_nanos())))
                 }
                 set_mtime::DONT_CHANGE => None,
             };
@@ -214,7 +233,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(Self::attrs_to_fattr3(&attrs))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn read(
@@ -226,7 +245,9 @@ impl NFSFileSystem for NfsOverlay {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let overlay = inner.lock().unwrap();
+            let overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let mut buf = vec![0u8; count as usize];
             let n = overlay.read(id, offset, &mut buf).map_err(|e| {
@@ -243,7 +264,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok((buf, eof))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn write(&self, id: fileid3, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
@@ -251,7 +272,9 @@ impl NFSFileSystem for NfsOverlay {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             overlay.write(id, offset, &data).map_err(|e| {
                 tracing::error!("write failed for {}: {}", id, e);
@@ -267,7 +290,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(Self::attrs_to_fattr3(&attrs))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn create(
@@ -276,11 +299,13 @@ impl NFSFileSystem for NfsOverlay {
         filename: &filename3,
         attr: sattr3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
-        let name = Self::filename_to_str(filename)?.to_string();
+        let name = Self::filename_to_str(filename)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let mode = match attr.mode {
                 set_mode3::mode(m) => m & 0o777,
@@ -302,7 +327,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok((inode, Self::attrs_to_fattr3(&attrs)))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn create_exclusive(
@@ -310,11 +335,13 @@ impl NFSFileSystem for NfsOverlay {
         dirid: fileid3,
         filename: &filename3,
     ) -> Result<fileid3, nfsstat3> {
-        let name = Self::filename_to_str(filename)?.to_string();
+        let name = Self::filename_to_str(filename)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             // Check if file already exists
             if overlay.lookup(dirid, &name).is_ok() {
@@ -331,7 +358,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(inode)
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn mkdir(
@@ -339,11 +366,13 @@ impl NFSFileSystem for NfsOverlay {
         dirid: fileid3,
         dirname: &filename3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
-        let name = Self::filename_to_str(dirname)?.to_string();
+        let name = Self::filename_to_str(dirname)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let inode = overlay.mkdir(dirid, &name, 0o755).map_err(|e| {
                 tracing::error!("mkdir failed for {}/{}: {}", dirid, name, e);
@@ -358,19 +387,22 @@ impl NFSFileSystem for NfsOverlay {
             Ok((inode, Self::attrs_to_fattr3(&attrs)))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
-        let name = Self::filename_to_str(filename)?.to_string();
+        let name = Self::filename_to_str(filename)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-            let inode = overlay
-                .lookup(dirid, &name)
-                .map_err(|_| nfsstat3::NFS3ERR_NOENT)?;
+            let inode = overlay.lookup(dirid, &name).map_err(|e| {
+                tracing::debug!("remove: lookup failed for {}/{}: {}", dirid, name, e);
+                nfsstat3::NFS3ERR_NOENT
+            })?;
 
             overlay.remove(inode).map_err(|e| {
                 tracing::error!("remove failed for {}/{}: {}", dirid, name, e);
@@ -380,7 +412,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(())
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn rename(
@@ -390,12 +422,14 @@ impl NFSFileSystem for NfsOverlay {
         to_dirid: fileid3,
         to_filename: &filename3,
     ) -> Result<(), nfsstat3> {
-        let from_name = Self::filename_to_str(from_filename)?.to_string();
-        let to_name = Self::filename_to_str(to_filename)?.to_string();
+        let from_name = Self::filename_to_str(from_filename)?.to_owned();
+        let to_name = Self::filename_to_str(to_filename)?.to_owned();
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             overlay
                 .rename(from_dirid, &from_name, to_dirid, &to_name)
@@ -418,7 +452,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(())
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn readdir(
@@ -430,7 +464,9 @@ impl NFSFileSystem for NfsOverlay {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let entries = overlay.readdir(dirid).map_err(|e| {
                 tracing::debug!("readdir failed for {}: {}", dirid, e);
@@ -475,7 +511,7 @@ impl NFSFileSystem for NfsOverlay {
             })
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn symlink(
@@ -485,12 +521,14 @@ impl NFSFileSystem for NfsOverlay {
         symlink: &nfspath3,
         _attr: &sattr3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
-        let name = Self::filename_to_str(linkname)?.to_string();
+        let name = Self::filename_to_str(linkname)?.to_owned();
         let target = Self::nfspath_to_string(symlink)?;
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let mut overlay = inner.lock().unwrap();
+            let mut overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let inode = overlay.symlink(dirid, &name, &target).map_err(|e| {
                 tracing::error!("symlink failed for {}/{}: {}", dirid, name, e);
@@ -505,14 +543,16 @@ impl NFSFileSystem for NfsOverlay {
             Ok((inode, Self::attrs_to_fattr3(&attrs)))
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 
     async fn readlink(&self, id: fileid3) -> Result<nfspath3, nfsstat3> {
         let inner = Arc::clone(&self.inner);
 
         tokio::task::spawn_blocking(move || {
-            let overlay = inner.lock().unwrap();
+            let overlay = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             let target = overlay.readlink(id).map_err(|e| {
                 tracing::debug!("readlink failed for {}: {}", id, e);
@@ -526,7 +566,7 @@ impl NFSFileSystem for NfsOverlay {
             Ok(target.into_bytes().into())
         })
         .await
-        .unwrap()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
     }
 }
 
@@ -696,7 +736,6 @@ mod tests {
 /// NFS server configuration
 pub struct NfsServer {
     pub port: u16,
-    #[allow(dead_code)]
     pub overlay: NfsOverlay,
 }
 
@@ -741,17 +780,21 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
     // Create mount point if it doesn't exist
     tokio::fs::create_dir_all(mount_point)
         .await
-        .wrap_err_with(|| format!("failed to create mount point {mount_point:?}"))?;
+        .wrap_err_with(|| format!("failed to create mount point {}", mount_point.display()))?;
 
     let mount_opts = format!("nolocks,vers=3,tcp,rsize=131072,port={port},mountport={port}");
 
-    tracing::debug!("executing: mount_nfs -o {mount_opts} localhost:/ {mount_point:?}");
+    tracing::debug!(
+        "executing: mount_nfs -o {} localhost:/ {}",
+        mount_opts,
+        mount_point.display()
+    );
 
     // Add timeout to prevent hanging indefinitely
     let mount_future = Command::new("mount_nfs")
         .arg("-o")
         .arg(&mount_opts)
-        .arg(format!("localhost:/"))
+        .arg("localhost:/")
         .arg(mount_point)
         .output();
 
@@ -784,20 +827,22 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
                 ""
             };
 
+        let stdout_msg = if stdout.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}", stdout.trim())
+        };
+
         color_eyre::eyre::bail!(
             "mount_nfs failed (exit code {}):\n{}{}\n{}",
             output.status,
             stderr.trim(),
-            if !stdout.is_empty() {
-                format!("\n{}", stdout.trim())
-            } else {
-                String::new()
-            },
+            stdout_msg,
             hint
         );
     }
 
-    tracing::info!("Mounted NFS at {mount_point:?}");
+    tracing::info!("Mounted NFS at {}", mount_point.display());
     Ok(())
 }
 
@@ -830,19 +875,21 @@ pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()
             ""
         };
 
+        let stdout_msg = if stdout.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}", stdout.trim())
+        };
+
         color_eyre::eyre::bail!(
             "umount failed (exit code {}):\n{}{}\n{}",
             output.status,
             stderr.trim(),
-            if !stdout.is_empty() {
-                format!("\n{}", stdout.trim())
-            } else {
-                String::new()
-            },
+            stdout_msg,
             hint
         );
     }
 
-    tracing::info!("Unmounted NFS at {mount_point:?}");
+    tracing::info!("Unmounted NFS at {}", mount_point.display());
     Ok(())
 }

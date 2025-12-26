@@ -28,3 +28,108 @@ tempfile = "3"
 which = "7"
 
 [dev-dependencies]
+
+[lints.clippy]
+# Deny all categories
+complexity = { level = "deny", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+
+# Allow casts (common in systems code)
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+
+# Allow specific lints - Code style
+collapsible_if = "allow"
+doc_lazy_continuation = "allow"
+doc_markdown = "allow"
+many_single_char_names = "allow"
+match_same_arms = "allow"
+single_match_else = "allow"
+too_many_lines = "allow"
+too_many_arguments = "allow"
+uninlined_format_args = "deny"
+
+# Allow specific lints - Documentation
+missing_const_for_fn = "allow"
+missing_docs_in_private_items = "allow"
+missing_errors_doc = "allow"
+
+# Allow specific lints - Design patterns
+future_not_send = "allow"
+must_use_candidate = "allow"
+needless_pass_by_value = "allow"
+option_if_let_else = "allow"
+significant_drop_tightening = "allow"
+struct_excessive_bools = "allow"
+
+# Allow specific lints - Miscellaneous
+multiple_crate_versions = "allow"
+similar_names = "allow"
+
+# Deny specific lints - Safety
+char_indices_as_byte_indices = "deny"
+indexing_slicing = "deny"
+string_slice = "deny"
+modulo_arithmetic = "deny"
+
+# Deny specific lints - Code quality
+allow_attributes = "deny"
+used_underscore_binding = "deny"
+allow_attributes_without_reason = "deny"
+cognitive_complexity = "deny"
+excessive_nesting = "deny"
+missing_panics_doc = "deny"
+# Use explicit write!/writeln! to stderr/stdout
+print_stdout = "deny"
+print_stderr = "deny"
+
+# Deny - Error handling strictness
+dbg_macro = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+exit = "deny"
+unwrap_in_result = "deny"
+panic_in_result_fn = "deny"
+get_unwrap = "deny"
+
+# Deny - Safety & correctness
+mem_forget = "deny"
+create_dir = "deny"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+assertions_on_result_states = "deny"
+missing_assert_message = "deny"
+lossy_float_literal = "deny"
+empty_drop = "deny"
+error_impl_error = "deny"
+let_underscore_must_use = "deny"
+infinite_loop = "deny"
+
+# Deny - Code style strictness
+shadow_unrelated = "deny"
+str_to_string = "deny"
+clone_on_ref_ptr = "deny"
+rc_buffer = "deny"
+rc_mutex = "deny"
+map_err_ignore = "deny"
+
+[lints.rust]
+# Deny categories
+deprecated_safe = { level = "deny", priority = -1 }
+future_incompatible = { level = "deny", priority = -1 }
+keyword_idents = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+# Warn
+unsafe_code = "warn"
