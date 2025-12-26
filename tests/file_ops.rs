@@ -127,13 +127,14 @@ fn test_overwrite_existing_file() -> color_eyre::Result<()> {
     // Overwrite from start
     ctx.overlay.write(file_id, 0, b"second")?;
 
-    // Read back - should have "second version" (partial overwrite)
+    // Read back - partial overwrite preserves trailing bytes
+    // "first version" (13 chars) with first 6 overwritten by "second" = "secondversion" (no space)
     let mut buf = vec![0u8; 50];
     let n = ctx.overlay.read(file_id, 0, &mut buf)?;
     assert_eq!(
         &buf[..n],
-        b"second version",
-        "partial overwrite should work"
+        b"secondversion",
+        "partial overwrite should preserve trailing bytes"
     );
 
     Ok(())

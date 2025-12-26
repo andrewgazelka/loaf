@@ -1,11 +1,9 @@
-use color_eyre::eyre::WrapErr as _;
-
 mod helpers;
 
 #[test]
 fn test_rename_file_same_directory() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -36,7 +34,7 @@ fn test_rename_file_same_directory() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_file_to_different_directory() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -69,7 +67,7 @@ fn test_rename_file_to_different_directory() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_preserves_file_content() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -97,7 +95,7 @@ fn test_rename_preserves_file_content() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_directory_with_children() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -151,7 +149,7 @@ fn test_rename_directory_with_children() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_updates_descendant_paths() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -182,7 +180,7 @@ fn test_rename_updates_descendant_paths() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_over_existing_file() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -217,7 +215,7 @@ fn test_rename_over_existing_file() -> color_eyre::Result<()> {
 #[test]
 fn test_old_path_not_accessible_after_rename() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -245,7 +243,7 @@ fn test_old_path_not_accessible_after_rename() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_symlink() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -274,7 +272,7 @@ fn test_rename_symlink() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_from_base_to_overlay() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create file in base
     ctx.create_base_file("base_file.txt", b"base content")?;
@@ -304,7 +302,7 @@ fn test_rename_from_base_to_overlay() -> color_eyre::Result<()> {
 #[test]
 fn test_rename_preserves_mode() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 

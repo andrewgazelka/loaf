@@ -35,7 +35,7 @@ impl TestOverlay {
 
     /// Get the root inode.
     pub fn root_id(&self) -> u64 {
-        self.overlay.root_id()
+        loaf::overlay::OverlayFs::ROOT_ID
     }
 
     /// Create a file in the base directory (simulates existing filesystem).

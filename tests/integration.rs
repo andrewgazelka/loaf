@@ -54,7 +54,7 @@ async fn test_overlay_operations() -> color_eyre::Result<()> {
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
     // Test 1: Lookup existing file (passthrough)
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
     let file_id = overlay
         .lookup(root_id, "existing.txt")
         .wrap_err("failed to lookup existing file")?;
@@ -138,7 +138,7 @@ async fn test_overlay_rename() -> color_eyre::Result<()> {
     let overlay_path = temp_dir.path().join("test.loaf");
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
 
     // Create file
     let file_id = overlay.create(root_id, "old.txt", loaf::db::ItemType::File, 0o644)?;
@@ -187,7 +187,7 @@ async fn test_read_operations_dont_copy() -> color_eyre::Result<()> {
     let overlay_path = temp_dir.path().join("test.loaf");
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
 
     // Lookup the file (simulates NFS lookup)
     let file_id = overlay.lookup(root_id, "readonly.txt")?;
@@ -241,7 +241,7 @@ async fn test_write_operations_do_copy() -> color_eyre::Result<()> {
     let overlay_path = temp_dir.path().join("test.loaf");
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
     let file_id = overlay.lookup(root_id, "modifiable.txt")?;
 
     // Write to the file - this SHOULD copy
@@ -271,7 +271,7 @@ async fn test_mode_change_triggers_copy() -> color_eyre::Result<()> {
     let overlay_path = temp_dir.path().join("test.loaf");
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
     let file_id = overlay.lookup(root_id, "chmod.txt")?;
 
     // Change mode - this SHOULD copy
@@ -299,7 +299,7 @@ async fn test_truncate_triggers_copy() -> color_eyre::Result<()> {
     let overlay_path = temp_dir.path().join("test.loaf");
     let mut overlay = loaf::overlay::OverlayFs::new(&overlay_path, &base_path)?;
 
-    let root_id = overlay.root_id();
+    let root_id = loaf::overlay::OverlayFs::ROOT_ID;
     let file_id = overlay.lookup(root_id, "truncate.txt")?;
 
     // Truncate - this SHOULD copy

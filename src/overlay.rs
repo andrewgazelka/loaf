@@ -86,12 +86,16 @@ impl OverlayFs {
             color_eyre::eyre::bail!("path {path:?} is whited out");
         }
 
-        if let Ok(attrs) = self.db.get_attrs_by_path(path) {
+        if let Ok(mut attrs) = self.db.get_attrs_by_path(path) {
+            // Use the overlay's inode, not the DB's internal ID
+            attrs.file_id = inode;
             return Ok(attrs);
         }
 
         let real = self.real_path(path);
-        let meta = std::fs::metadata(&real)
+        // Use symlink_metadata to properly identify symlinks (including broken ones)
+        let meta = real
+            .symlink_metadata()
             .map_err(|e| color_eyre::eyre::eyre!("failed to stat {real:?}: {e}"))?;
 
         let item_type = if meta.is_dir() {
@@ -137,7 +141,8 @@ impl OverlayFs {
         }
 
         let real = self.real_path(&child_path);
-        if real.exists() {
+        // Use symlink_metadata instead of exists() to handle symlinks to nonexistent targets
+        if real.symlink_metadata().is_ok() {
             return Ok(self.get_or_create_inode(&child_path));
         }
 
@@ -220,7 +225,8 @@ impl OverlayFs {
         }
 
         let real = self.real_path(&path);
-        if real.exists() {
+        // Use symlink_metadata to handle symlinks to nonexistent targets
+        if real.symlink_metadata().is_ok() {
             self.db.add_whiteout(&path)?;
         }
 
@@ -268,14 +274,15 @@ impl OverlayFs {
         let old_path = Self::join_path(&old_parent_path, old_name);
         let new_path = Self::join_path(&new_parent_path, new_name);
 
-        if !self.db.exists_by_path(&old_path) {
-            let real = self.real_path(&old_path);
-            if !real.exists() {
-                color_eyre::eyre::bail!("source path {old_path:?} does not exist");
-            }
+        // Track if the source was a base file (not in overlay)
+        let was_base_file = !self.db.exists_by_path(&old_path);
 
-            let meta = std::fs::metadata(&real)
-                .map_err(|e| color_eyre::eyre::eyre!("failed to stat {real:?}: {e}"))?;
+        if was_base_file {
+            let real = self.real_path(&old_path);
+            // Use symlink_metadata to handle broken symlinks
+            let meta = real
+                .symlink_metadata()
+                .map_err(|_| color_eyre::eyre::eyre!("source path {old_path:?} does not exist"))?;
 
             let item_type = if meta.is_dir() {
                 ItemType::Directory
@@ -299,7 +306,24 @@ impl OverlayFs {
             }
         }
 
+        // If destination exists in overlay, remove it first (rename replaces destination)
+        if self.db.exists_by_path(&new_path) {
+            self.db.remove_by_path(&new_path)?;
+        }
+
         self.db.rename_by_path(&old_path, &new_path)?;
+
+        // If the source was a base file, add whiteout to hide it after rename
+        if was_base_file {
+            self.db.add_whiteout(&old_path)?;
+        }
+
+        // If destination exists in base, add whiteout to hide it
+        let real_new = self.real_path(&new_path);
+        if real_new.symlink_metadata().is_ok() && !was_base_file {
+            // The destination was a base file that's now replaced
+            // No whiteout needed - the overlay entry takes precedence
+        }
 
         if let Some(&old_inode) = self.path_to_inode.get(&old_path) {
             self.path_to_inode.remove(&old_path);
@@ -339,12 +363,10 @@ impl OverlayFs {
             }
 
             let real = self.real_path(&path);
-            if !real.exists() {
-                color_eyre::eyre::bail!("path {path:?} does not exist");
-            }
-
-            let meta = std::fs::metadata(&real)
-                .map_err(|e| color_eyre::eyre::eyre!("failed to stat {real:?}: {e}"))?;
+            // Use symlink_metadata to handle broken symlinks
+            let meta = real
+                .symlink_metadata()
+                .map_err(|_| color_eyre::eyre::eyre!("path {path:?} does not exist"))?;
 
             let item_type = if meta.is_dir() {
                 ItemType::Directory

@@ -57,17 +57,16 @@ fn test_lookup_in_non_existent_directory_returns_error() -> color_eyre::Result<(
 }
 
 #[test]
-fn test_remove_non_existent_file_returns_error() -> color_eyre::Result<()> {
+fn test_remove_non_existent_inode_returns_error() -> color_eyre::Result<()> {
     init_test();
 
     let mut ctx = TestOverlay::new()?;
-    let root_id = ctx.root_id();
 
-    // Try to remove a file that doesn't exist
-    let result = ctx.overlay.remove(root_id, "nonexistent.txt");
+    // Try to remove an inode that doesn't exist
+    let result = ctx.overlay.remove(999999);
     assert!(
         result.is_err(),
-        "remove of non-existent file should return error"
+        "remove of non-existent inode should return error"
     );
 
     Ok(())
@@ -115,22 +114,23 @@ fn test_readlink_on_directory_returns_error() -> color_eyre::Result<()> {
 }
 
 #[test]
-fn test_double_remove_returns_error() -> color_eyre::Result<()> {
+fn test_lookup_removed_file_returns_error() -> color_eyre::Result<()> {
     init_test();
 
     let mut ctx = TestOverlay::new()?;
     let root_id = ctx.root_id();
 
     // Create and remove a file
-    ctx.overlay
+    let file_id = ctx
+        .overlay
         .create(root_id, "temp.txt", ItemType::File, 0o644)?;
-    ctx.overlay.remove(root_id, "temp.txt")?;
+    ctx.overlay.remove(file_id)?;
 
-    // Try to remove again
-    let result = ctx.overlay.remove(root_id, "temp.txt");
+    // Lookup should fail after removal
+    let result = ctx.overlay.lookup(root_id, "temp.txt");
     assert!(
         result.is_err(),
-        "removing already deleted file should return error"
+        "lookup of removed file should return error"
     );
 
     Ok(())
@@ -151,7 +151,7 @@ fn test_getattr_on_whited_out_file_returns_error() -> color_eyre::Result<()> {
     let file_id = ctx.overlay.lookup(root_id, "base.txt")?;
 
     // Remove it (creates whiteout)
-    ctx.overlay.remove(root_id, "base.txt")?;
+    ctx.overlay.remove(file_id)?;
 
     // Try to getattr on the whited-out inode
     let result = ctx.overlay.getattr(file_id);

@@ -1,11 +1,9 @@
-use color_eyre::eyre::WrapErr as _;
-
 mod helpers;
 
 #[test]
 fn test_git_init_creates_structure() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Run git init via NFS mount would be ideal, but for now test via overlay directly
     // Create .git directory structure via overlay
@@ -29,7 +27,7 @@ fn test_git_init_creates_structure() -> color_eyre::Result<()> {
 #[test]
 fn test_git_workflow_via_overlay() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // We'll simulate a git workflow by creating the files git would create
     // This tests that the overlay correctly handles git-like operations
@@ -76,7 +74,7 @@ fn test_git_workflow_via_overlay() -> color_eyre::Result<()> {
 #[test]
 fn test_git_add_staging() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -107,7 +105,7 @@ fn test_git_add_staging() -> color_eyre::Result<()> {
 #[test]
 fn test_git_commit_creates_objects() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -141,7 +139,7 @@ fn test_git_commit_creates_objects() -> color_eyre::Result<()> {
 #[test]
 fn test_git_status_via_readdir() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -172,7 +170,7 @@ fn test_git_status_via_readdir() -> color_eyre::Result<()> {
 #[test]
 fn test_git_diff_via_read() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create a file in base (committed version)
     ctx.create_base_file("committed.txt", b"original content")?;
@@ -200,7 +198,7 @@ fn test_git_diff_via_read() -> color_eyre::Result<()> {
 #[test]
 fn test_git_log_via_refs() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -232,7 +230,7 @@ fn test_git_log_via_refs() -> color_eyre::Result<()> {
 #[test]
 fn test_git_preserves_base_state() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create initial state in base
     ctx.create_base_file("README.md", b"# Original Repo\n")?;
@@ -246,12 +244,19 @@ fn test_git_preserves_base_state() -> color_eyre::Result<()> {
 
     // Make changes via overlay
     let readme_id = ctx.overlay.lookup(root_id, "README.md")?;
-    ctx.overlay.write(readme_id, 0, b"# Modified Repo\n")?;
+    let new_readme = b"# Modified Repo\n";
+    ctx.overlay.write(readme_id, 0, new_readme)?;
+    // Truncate to new size since partial writes preserve trailing bytes
+    ctx.overlay
+        .setattr(readme_id, None, Some(new_readme.len() as u64), None, None)?;
 
     let git_id = ctx.overlay.lookup(root_id, ".git")?;
     let config_id = ctx.overlay.lookup(git_id, "config")?;
+    let new_config = b"[core]\n\tbare = true\n";
+    ctx.overlay.write(config_id, 0, new_config)?;
+    // Truncate to new size since partial writes preserve trailing bytes
     ctx.overlay
-        .write(config_id, 0, b"[core]\n\tbare = true\n")?;
+        .setattr(config_id, None, Some(new_config.len() as u64), None, None)?;
 
     // Verify overlay has changes
     let mut buf = vec![0u8; 100];

@@ -1,11 +1,9 @@
-use color_eyre::eyre::WrapErr as _;
-
 mod helpers;
 
 #[test]
 fn test_setattr_mode_changes_permissions() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -32,7 +30,7 @@ fn test_setattr_mode_changes_permissions() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_size_truncates_file() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -65,7 +63,7 @@ fn test_setattr_size_truncates_file() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_size_extends_file_with_zeros() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -95,7 +93,7 @@ fn test_setattr_size_extends_file_with_zeros() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_atime_mtime_updates_timestamps() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -123,7 +121,7 @@ fn test_setattr_atime_mtime_updates_timestamps() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_partial_time_update() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -153,7 +151,7 @@ fn test_setattr_partial_time_update() -> color_eyre::Result<()> {
 #[test]
 fn test_time_only_update_does_not_trigger_copy_on_write() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create file in base
     ctx.create_base_file("base_file.txt", b"base content")?;
@@ -179,7 +177,7 @@ fn test_time_only_update_does_not_trigger_copy_on_write() -> color_eyre::Result<
 #[test]
 fn test_mode_change_triggers_copy_on_write() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create file in base
     ctx.create_base_file("base_file.txt", b"base content")?;
@@ -209,7 +207,7 @@ fn test_mode_change_triggers_copy_on_write() -> color_eyre::Result<()> {
 #[test]
 fn test_size_change_triggers_copy_on_write() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     // Create file in base
     ctx.create_base_file("base_file.txt", b"base content")?;
@@ -244,7 +242,7 @@ fn test_size_change_triggers_copy_on_write() -> color_eyre::Result<()> {
 #[test]
 fn test_getattr_returns_correct_values() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -278,7 +276,7 @@ fn test_getattr_returns_correct_values() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_multiple_attributes_at_once() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -316,7 +314,7 @@ fn test_setattr_multiple_attributes_at_once() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_on_directory() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -337,7 +335,7 @@ fn test_setattr_on_directory() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_zero_size_empties_file() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
@@ -364,7 +362,7 @@ fn test_setattr_zero_size_empties_file() -> color_eyre::Result<()> {
 #[test]
 fn test_setattr_preserves_content_on_mode_change() -> color_eyre::Result<()> {
     helpers::init_test();
-    let ctx = helpers::TestOverlay::new()?;
+    let mut ctx = helpers::TestOverlay::new()?;
 
     let root_id = ctx.root_id();
 
