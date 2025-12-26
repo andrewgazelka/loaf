@@ -12,6 +12,8 @@ mod sandbox;
 
 use color_eyre::eyre::WrapErr as _;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::signal::unix::{SignalKind, signal};
 
 const DEFAULT_LOG_FILE: &str = "/tmp/loaf.log";
 
@@ -80,6 +82,9 @@ async fn main() -> color_eyre::Result<()> {
 
     color_eyre::install()?;
 
+    // Install panic hook for best-effort cleanup on crash
+    install_panic_hook();
+
     let cli = <Cli as clap::Parser>::parse();
 
     // Set up logging - always write to file, optionally to terminal with --verbose
@@ -115,6 +120,9 @@ async fn main() -> color_eyre::Result<()> {
             .init();
     }
 
+    // Clean up any stale mounts from previous crashes
+    cleanup_stale_mounts().await?;
+
     match cli.command {
         Commands::Mount { path, port } => mount_command(path, port).await?,
         Commands::Unmount { path } => unmount_command(path).await?,
@@ -136,6 +144,130 @@ async fn main() -> color_eyre::Result<()> {
 struct MountState {
     port: u16,
     overlay_path: PathBuf,
+}
+
+/// Global flag to track if cleanup is in progress (for panic hook)
+static CLEANUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+/// Global mount path for panic hook cleanup (set when mount is active)
+static ACTIVE_MOUNT_PATH: std::sync::OnceLock<std::sync::Mutex<Option<PathBuf>>> =
+    std::sync::OnceLock::new();
+
+fn set_active_mount(path: Option<PathBuf>) {
+    let mutex = ACTIVE_MOUNT_PATH.get_or_init(|| std::sync::Mutex::new(None));
+    if let Ok(mut guard) = mutex.lock() {
+        *guard = path;
+    }
+}
+
+fn get_active_mount() -> Option<PathBuf> {
+    ACTIVE_MOUNT_PATH
+        .get()
+        .and_then(|m| m.lock().ok())
+        .and_then(|guard| guard.clone())
+}
+
+/// Install panic hook for best-effort cleanup
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        // Prevent recursive cleanup
+        if CLEANUP_IN_PROGRESS
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            if let Some(mount_path) = get_active_mount() {
+                eprintln!(
+                    "\nPanic detected, attempting emergency unmount of {}...",
+                    mount_path.display()
+                );
+                // Best-effort sync unmount - can't use async here
+                let _ = std::process::Command::new("umount")
+                    .arg(&mount_path)
+                    .status();
+            }
+        }
+        // Call the default hook (prints panic info)
+        default_hook(info);
+    }));
+}
+
+/// Check if a path is currently mounted (macOS)
+async fn is_mounted(path: &std::path::Path) -> color_eyre::Result<bool> {
+    let output = tokio::process::Command::new("mount")
+        .output()
+        .await
+        .wrap_err("failed to run mount command")?;
+
+    let mount_output = String::from_utf8_lossy(&output.stdout);
+    let path_str = path.to_string_lossy();
+
+    // macOS mount output: "localhost:/ on /path/to/mount (nfs, ...)"
+    Ok(mount_output.lines().any(|line| line.contains(&*path_str)))
+}
+
+/// Detect and clean up stale mounts from previous crashes
+async fn cleanup_stale_mounts() -> color_eyre::Result<()> {
+    // Check current directory and parents for orphaned .loaf.state files
+    let Ok(mut current) = std::env::current_dir() else {
+        return Ok(());
+    };
+
+    loop {
+        let state_path = current.join(".loaf.state");
+        if state_path.exists() {
+            tracing::info!("found state file at {}", state_path.display());
+
+            // Read and parse state
+            if let Ok(state_json) = std::fs::read_to_string(&state_path) {
+                if let Ok(state) = serde_json::from_str::<MountState>(&state_json) {
+                    // The mount point is the parent of .loaf (state_path is .loaf.state, overlay is .loaf)
+                    let mount_point = state
+                        .overlay_path
+                        .parent()
+                        .unwrap_or(&current)
+                        .to_path_buf();
+
+                    // Check if this mount is actually stale (no server responding)
+                    if is_mounted(&mount_point).await.unwrap_or(false) {
+                        // Check if NFS server is still alive by trying to connect
+                        let server_alive =
+                            tokio::net::TcpStream::connect(format!("127.0.0.1:{}", state.port))
+                                .await
+                                .is_ok();
+
+                        if !server_alive {
+                            tracing::warn!(
+                                "stale mount detected at {} (server on port {} not responding), cleaning up",
+                                mount_point.display(),
+                                state.port
+                            );
+
+                            // Try to unmount
+                            if let Err(e) = nfs::unmount_nfs(&mount_point).await {
+                                tracing::warn!("failed to unmount stale mount: {e}");
+                            } else {
+                                println!("✓ Cleaned up stale mount at {}", mount_point.display());
+                            }
+
+                            // Remove stale state file
+                            std::fs::remove_file(&state_path).ok();
+                        }
+                    } else {
+                        // Not mounted but state file exists - just clean up the state file
+                        tracing::info!("removing orphaned state file at {}", state_path.display());
+                        std::fs::remove_file(&state_path).ok();
+                    }
+                }
+            }
+        }
+
+        if !current.pop() {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
 async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<()> {
@@ -206,17 +338,35 @@ async fn mount_command(path: PathBuf, port: Option<u16>) -> color_eyre::Result<(
     std::fs::write(&state_path, state_json)
         .wrap_err_with(|| format!("failed to write mount state to {}", state_path.display()))?;
 
+    // Register mount path for panic hook cleanup
+    set_active_mount(Some(path.clone()));
+
     println!("✓ Overlay mounted at {}", path.display());
     println!("  NFS server running on port {}", server.port);
     println!("  Overlay database: {}", overlay_path.display());
     println!("\nPress Ctrl+C to unmount and stop the server");
 
-    // Wait for Ctrl+C signal
-    tokio::signal::ctrl_c()
-        .await
-        .wrap_err("failed to wait for ctrl+c")?;
+    // Set up signal handlers for graceful shutdown
+    let mut sigterm =
+        signal(SignalKind::terminate()).wrap_err("failed to register SIGTERM handler")?;
+    let mut sighup = signal(SignalKind::hangup()).wrap_err("failed to register SIGHUP handler")?;
 
-    tracing::info!("received Ctrl+C, unmounting...");
+    // Wait for any termination signal
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("received SIGINT (Ctrl+C), unmounting...");
+        }
+        _ = sigterm.recv() => {
+            tracing::info!("received SIGTERM, unmounting...");
+        }
+        _ = sighup.recv() => {
+            tracing::info!("received SIGHUP (terminal closed), unmounting...");
+        }
+    }
+
+    // Clear active mount before cleanup (panic hook no longer needed)
+    set_active_mount(None);
+
     nfs::unmount_nfs(&path)
         .await
         .wrap_err("failed to unmount")?;
