@@ -3,14 +3,25 @@
 //! This provides process-level sandboxing using Apple's Seatbelt framework.
 //! The sandbox_init() function is deprecated but still functional and is used
 //! by major applications like Chromium and Firefox.
+//!
+//! # Safety
+//!
+//! This module uses FFI to call macOS system functions. Safety is ensured by:
+//! - Using stable C ABI functions from libsystem_sandbox.dylib (documented in sandbox.h)
+//! - Passing valid CString pointers that outlive the FFI call
+//! - Properly freeing error buffers allocated by sandbox_init
+//! - Only reading from error pointer after null check
+
+#![expect(
+    unsafe_code,
+    reason = "FFI to stable macOS sandbox APIs with proper lifetime and null handling"
+)]
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
 
 // FFI bindings to libsystem_sandbox.dylib (part of System framework)
-// SAFETY: These are stable C ABI functions from macOS libsystem_sandbox.dylib.
-// They are documented in sandbox.h and used by major applications (Chromium, Firefox).
 unsafe extern "C" {
     /// Apply sandbox profile to current process.
     /// Returns 0 on success, -1 on failure.
@@ -34,8 +45,10 @@ pub unsafe fn apply_sandbox(profile: &str) -> Result<(), String> {
 
     let mut error: *mut c_char = std::ptr::null_mut();
 
-    // SAFETY: sandbox_init is a stable macOS API. We pass a valid C string,
-    // valid flags, and a valid pointer to receive the error buffer.
+    // SAFETY: sandbox_init is a stable macOS API. We pass:
+    // - Valid C string pointer (profile_cstr outlives this call)
+    // - Valid flags constant
+    // - Valid pointer to receive error buffer
     let result = unsafe {
         sandbox_init(
             profile_cstr.as_ptr(),
@@ -48,11 +61,11 @@ pub unsafe fn apply_sandbox(profile: &str) -> Result<(), String> {
         let err_msg = if error.is_null() {
             "unknown sandbox error".to_owned()
         } else {
-            // SAFETY: error is non-null, points to a C string allocated by sandbox_init.
+            // SAFETY: error is non-null and points to a valid C string allocated by sandbox_init
             let msg = unsafe { CStr::from_ptr(error) }
                 .to_string_lossy()
                 .into_owned();
-            // SAFETY: error was allocated by sandbox_init, must be freed with sandbox_free_error.
+            // SAFETY: error was allocated by sandbox_init, freed with matching sandbox_free_error
             unsafe { sandbox_free_error(error) };
             msg
         };

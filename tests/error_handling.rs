@@ -60,7 +60,7 @@ fn test_lookup_in_non_existent_directory_returns_error() -> color_eyre::Result<(
 fn test_remove_non_existent_inode_returns_error() -> color_eyre::Result<()> {
     init_test();
 
-    let mut ctx = TestOverlay::new()?;
+    let ctx = TestOverlay::new()?;
 
     // Try to remove an inode that doesn't exist
     let result = ctx.overlay.remove(999999);
@@ -167,7 +167,7 @@ fn test_getattr_on_whited_out_file_returns_error() -> color_eyre::Result<()> {
 fn test_read_from_non_existent_inode_returns_error() -> color_eyre::Result<()> {
     init_test();
 
-    let mut ctx = TestOverlay::new()?;
+    let ctx = TestOverlay::new()?;
 
     // Try to read from a very high inode that doesn't exist
     let mut buf = vec![0u8; 100];
@@ -184,7 +184,7 @@ fn test_read_from_non_existent_inode_returns_error() -> color_eyre::Result<()> {
 fn test_write_to_non_existent_inode_returns_error() -> color_eyre::Result<()> {
     init_test();
 
-    let mut ctx = TestOverlay::new()?;
+    let ctx = TestOverlay::new()?;
 
     // Try to write to a very high inode that doesn't exist
     let result = ctx.overlay.write(999999, 0, b"data");
@@ -200,7 +200,7 @@ fn test_write_to_non_existent_inode_returns_error() -> color_eyre::Result<()> {
 fn test_setattr_on_non_existent_inode_returns_error() -> color_eyre::Result<()> {
     init_test();
 
-    let mut ctx = TestOverlay::new()?;
+    let ctx = TestOverlay::new()?;
 
     // Try to setattr on a very high inode that doesn't exist
     let result = ctx.overlay.setattr(999999, Some(0o644), None, None, None);

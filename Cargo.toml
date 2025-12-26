@@ -126,6 +126,9 @@ rc_mutex = "deny"
 map_err_ignore = "deny"
 
 [lints.rust]
+# Deny all warnings
+warnings = "deny"
+
 # Deny categories
 deprecated_safe = { level = "deny", priority = -1 }
 future_incompatible = { level = "deny", priority = -1 }

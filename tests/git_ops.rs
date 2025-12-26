@@ -42,8 +42,8 @@ fn test_git_workflow_via_overlay() -> color_eyre::Result<()> {
 
     // Create .git structure
     let git_id = ctx.overlay.mkdir(root_id, ".git", 0o755)?;
-    let objects_id = ctx.overlay.mkdir(git_id, "objects", 0o755)?;
-    let refs_id = ctx.overlay.mkdir(git_id, "refs", 0o755)?;
+    let _objects_id = ctx.overlay.mkdir(git_id, "objects", 0o755)?;
+    let _refs_id = ctx.overlay.mkdir(git_id, "refs", 0o755)?;
 
     // Create HEAD file
     let head_id = ctx

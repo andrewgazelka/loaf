@@ -736,7 +736,6 @@ mod tests {
 /// NFS server configuration
 pub struct NfsServer {
     pub port: u16,
-    pub overlay: NfsOverlay,
 }
 
 impl NfsServer {
@@ -757,10 +756,7 @@ impl NfsServer {
         let actual_port = listener.get_listen_port();
         tracing::info!("NFS server listening on 127.0.0.1:{}", actual_port);
 
-        let server = Self {
-            port: actual_port,
-            overlay: nfs_overlay,
-        };
+        let server = Self { port: actual_port };
 
         // Spawn server task
         let handle = tokio::spawn(async move {

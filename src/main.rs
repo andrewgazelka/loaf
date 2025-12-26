@@ -409,6 +409,10 @@ async fn unmount_command(path: PathBuf) -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[expect(
+    unsafe_code,
+    reason = "pre_exec runs after fork in single-threaded child; sandbox is applied before exec"
+)]
 async fn run_command(
     command: String,
     args: Vec<String>,
