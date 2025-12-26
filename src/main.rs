@@ -181,10 +181,8 @@ fn install_panic_hook() {
                     "\nPanic detected, attempting emergency unmount of {}...",
                     mount_path.display()
                 );
-                // Best-effort sync unmount - can't use async here
-                let _ = std::process::Command::new("umount")
-                    .arg(&mount_path)
-                    .status();
+                // Best-effort sync unmount via syscall
+                let _ = nfs::unmount_sync(&mount_path);
             }
         }
         // Call the default hook (prints panic info)

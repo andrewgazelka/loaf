@@ -846,50 +846,32 @@ pub async fn mount_nfs(port: u16, mount_point: &std::path::Path) -> color_eyre::
     Ok(())
 }
 
-/// Unmount NFS filesystem via umount command
-pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()> {
-    use tokio::process::Command;
+/// Unmount filesystem using unmount(2) syscall (sync version)
+///
+/// Use this in contexts where async is not available (e.g., panic hooks).
+pub fn unmount_sync(mount_point: &std::path::Path) -> color_eyre::Result<()> {
+    tracing::debug!("unmount syscall: {mount_point:?}");
 
-    tracing::debug!("executing: umount {mount_point:?}");
-
-    let output = Command::new("umount")
-        .arg(mount_point)
-        .output()
-        .await
-        .wrap_err("failed to execute umount command")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
+    nix::mount::unmount(mount_point, nix::mount::MntFlags::empty()).map_err(|errno| {
         // Provide helpful error messages based on common failure modes
-        let hint = if stderr.contains("Permission denied")
-            || stderr.contains("Operation not permitted")
-        {
-            "\nHint: Try running with sudo: sudo loaf unmount"
-        } else if stderr.contains("not currently mounted") || stderr.contains("not a mount point") {
-            "\nHint: Directory is not currently mounted"
-        } else if stderr.contains("busy") || stderr.contains("in use") {
-            "\nHint: Files may be in use. Close any programs accessing the mount point and try again"
-        } else {
-            ""
+        let hint = match errno {
+            nix::errno::Errno::EPERM => {
+                "\nHint: Try running with sudo: sudo loaf unmount"
+            }
+            nix::errno::Errno::EINVAL => "\nHint: Directory is not currently mounted",
+            nix::errno::Errno::EBUSY => {
+                "\nHint: Files may be in use. Close any programs accessing the mount point and try again"
+            }
+            _ => "",
         };
-
-        let stdout_msg = if stdout.is_empty() {
-            String::new()
-        } else {
-            format!("\n{}", stdout.trim())
-        };
-
-        color_eyre::eyre::bail!(
-            "umount failed (exit code {}):\n{}{}\n{}",
-            output.status,
-            stderr.trim(),
-            stdout_msg,
-            hint
-        );
-    }
+        color_eyre::eyre::eyre!("unmount({}) failed: {errno}{hint}", mount_point.display())
+    })?;
 
     tracing::info!("Unmounted NFS at {}", mount_point.display());
     Ok(())
+}
+
+/// Unmount NFS filesystem (async wrapper for compatibility)
+pub async fn unmount_nfs(mount_point: &std::path::Path) -> color_eyre::Result<()> {
+    unmount_sync(mount_point)
 }
