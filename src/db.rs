@@ -1,6 +1,8 @@
 use std::path::Path;
 
 const SCHEMA_SQL: &str = r"
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS overlay_config (
@@ -80,6 +82,7 @@ impl TryFrom<i64> for ItemType {
 #[derive(Debug, Clone)]
 pub struct Attrs {
     pub file_id: u64,
+    #[allow(dead_code)] // populated from DB, reserved for future use
     pub parent_id: u64,
     pub item_type: ItemType,
     pub mode: u32,
